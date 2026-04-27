@@ -107,6 +107,12 @@ func pawn_move_pos():
 		if pos != null:
 			positions.append(pos)
 
+	if board_handle.en_passant_target != null and board_handle.en_passant_pawn != null and board_handle.en_passant_pawn.color != color:
+		for inc in PAWN_SPOT_INCREMENTS_TAKE:
+			var ep_pos = Vector2(board_position[0] + inc[0], board_position[1] + (inc[1] if color == Globals.COLORS.BLACK else -inc[1]))
+			if ep_pos == board_handle.en_passant_target and board_handle.get_piece(ep_pos) == null:
+				positions.append(ep_pos)
+
 	return positions
 
 const BISHOP_BEAM_INCREMENTS = [[1, 1], [1, -1], [-1, 1], [-1, -1]]

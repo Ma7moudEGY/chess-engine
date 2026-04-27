@@ -12,7 +12,7 @@ var selected_piece = null
 var previous_position = null
 var selected_legal_targets = {}
 
-# [from, to, moved, captured, prev_type, rook, rook_from, rook_to, rook_prev_moved]
+# [from, to, moved, captured, prev_type, rook, rook_from, rook_to, rook_prev_moved, prev_ep_target, prev_ep_pawn]
 var moves = []
 
 @onready var board = $Board
@@ -78,7 +78,8 @@ func _input(event: InputEvent) -> void:
 		clear_selection()
 		if evaluate_end_game():
 			return
-		call_deferred("player2_move")
+		if player2_type == Globals.PLAYER_2_TYPE.AI and status == Globals.COLORS.BLACK: 
+			call_deferred("player2_move")
 
 
 func init_game():
@@ -107,6 +108,10 @@ func undo_move():
 		if rook != null:
 			rook.move_position(move[6])
 			rook.moved = move[8]
+
+		if move.size() > 9:
+			board.en_passant_target = move[9]
+			board.en_passant_pawn = move[10]
 
 		status = Globals.COLORS.BLACK if status == Globals.COLORS.WHITE else Globals.COLORS.WHITE
 
@@ -139,10 +144,16 @@ func try_move_to(to_move) -> bool:
 			return false
 	if valid_move(selected_piece.board_position, to_move):
 		var dest_piece = board.get_piece(to_move)
+		if selected_piece.piece_type == Globals.PIECE_TYPES.PAWN and dest_piece == null and board.en_passant_target != null:
+			if to_move == board.en_passant_target and board.en_passant_pawn != null and board.en_passant_pawn.color != selected_piece.color:
+				dest_piece = board.en_passant_pawn
+
 		if dest_piece != null and dest_piece.color != selected_piece.color:
 			board.delete_piece(dest_piece, false)
 
 		var prev_type = selected_piece.piece_type
+		var prev_ep_target = board.en_passant_target
+		var prev_ep_pawn = board.en_passant_pawn
 
 		var rook = null
 		var rook_from = null
@@ -164,8 +175,17 @@ func try_move_to(to_move) -> bool:
 				rook.move_position(rook_to)
 				rook.moved = true
 
-		moves.append([selected_piece.board_position, to_move, selected_piece.moved, dest_piece, prev_type, rook, rook_from, rook_to, rook_prev_moved])
+		board.en_passant_target = null
+		board.en_passant_pawn = null
+
+		moves.append([selected_piece.board_position, to_move, selected_piece.moved, dest_piece, prev_type, rook, rook_from, rook_to, rook_prev_moved, prev_ep_target, prev_ep_pawn])
 		selected_piece.move_position(to_move)
+
+		if selected_piece.piece_type == Globals.PIECE_TYPES.PAWN and abs(to_move.y - moves[-1][0].y) == 2:
+			var step = 1 if selected_piece.color == Globals.COLORS.BLACK else -1
+			board.en_passant_target = Vector2(to_move.x, to_move.y - step)
+			board.en_passant_pawn = selected_piece
+
 		status = Globals.COLORS.BLACK if status == Globals.COLORS.WHITE else Globals.COLORS.WHITE
 		if DEBUG_LOG:
 			print(moves)
@@ -211,6 +231,10 @@ func simulate_move(from_pos, to_pos):
 	var rook_from = null
 	var rook_to = null
 	var rook_prev_moved = null
+
+	if piece.piece_type == Globals.PIECE_TYPES.PAWN and dest_piece == null and board.en_passant_target != null:
+		if to_pos == board.en_passant_target and board.en_passant_pawn != null and board.en_passant_pawn.color != piece.color:
+			dest_piece = board.en_passant_pawn
 
 	if dest_piece != null:
 		board.delete_piece(dest_piece, false)
@@ -281,6 +305,8 @@ func is_square_attacked(pos, col):
 
 func valid_move(from_pos, to_pos):
 	var src_piece = board.get_piece(from_pos)
+	if src_piece == null:
+		return false
 
 	if (to_pos not in src_piece.get_moveable_positions() and to_pos not in src_piece.get_threatened_positions()):
 		return false
@@ -332,10 +358,15 @@ func player2_move():
 		var piece = move[0]
 		var pos = move[1]
 		var dest_piece = board.get_piece(pos)
+		if piece.piece_type == Globals.PIECE_TYPES.PAWN and dest_piece == null and board.en_passant_target != null:
+			if pos == board.en_passant_target and board.en_passant_pawn != null and board.en_passant_pawn.color != piece.color:
+				dest_piece = board.en_passant_pawn
 		
 		if dest_piece != null and dest_piece.color != piece.color:
 			board.delete_piece(dest_piece, false)
 		var prev_type = piece.piece_type
+		var prev_ep_target = board.en_passant_target
+		var prev_ep_pawn = board.en_passant_pawn
 		var rook = null
 		var rook_from = null
 		var rook_to = null
@@ -356,8 +387,14 @@ func player2_move():
 				rook.move_position(rook_to)
 				rook.moved = true
 
-		moves.append([piece.board_position, move[1], piece.moved, dest_piece, prev_type, rook, rook_from, rook_to, rook_prev_moved])
+		board.en_passant_target = null
+		board.en_passant_pawn = null
+		moves.append([piece.board_position, move[1], piece.moved, dest_piece, prev_type, rook, rook_from, rook_to, rook_prev_moved, prev_ep_target, prev_ep_pawn])
 		piece.move_position(pos)
+		if piece.piece_type == Globals.PIECE_TYPES.PAWN and abs(pos.y - moves[-1][0].y) == 2:
+			var step = 1 if piece.color == Globals.COLORS.BLACK else -1
+			board.en_passant_target = Vector2(pos.x, pos.y - step)
+			board.en_passant_pawn = piece
 		status = Globals.COLORS.BLACK if status == Globals.COLORS.WHITE else Globals.COLORS.WHITE
 		evaluate_end_game()
 

@@ -9,6 +9,9 @@ extends Node2D
 
 @onready var marker_layer = Node2D.new()
 
+var en_passant_target = null
+var en_passant_pawn = null
+
 var piece_map = {}
 
 const CELL_SIZE = 90
