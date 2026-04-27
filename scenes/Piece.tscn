@@ -1,0 +1,9 @@
+[gd_scene format=3 uid="uid://b227f2b62v1ch"]
+
+[ext_resource type="Script" uid="uid://citixvht7prki" path="res://scripts/piece.gd" id="1_gksgf"]
+
+[node name="Piece" type="Node2D" unique_id=1574719118]
+script = ExtResource("1_gksgf")
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1178977123]
+region_rect = Rect2(0, 0, 16, 16)
