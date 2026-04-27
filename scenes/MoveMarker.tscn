@@ -1,0 +1,16 @@
+[gd_scene format=3 uid="uid://da1ymcsy7ijlc"]
+
+[node name="MoveMarker" type="Node2D" unique_id=717374261]
+
+[node name="ColorRect" type="ColorRect" parent="." unique_id=338191936]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -45.0
+offset_top = -45.0
+offset_right = 45.0
+offset_bottom = 45.0
+grow_horizontal = 2
+grow_vertical = 2

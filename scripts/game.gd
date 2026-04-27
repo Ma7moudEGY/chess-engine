@@ -39,48 +39,46 @@ func _input(event: InputEvent) -> void:
 
 	elif Input.is_action_just_pressed("left_click"):
 		var pos = get_pos_under_mouse()
-		selected_piece = board.get_piece(pos)
+		var clicked_piece = board.get_piece(pos)
 
-		if selected_piece == null or selected_piece.color != status:
+		if selected_piece == null:
+			if clicked_piece == null or clicked_piece.color != status:
+				return
+			select_piece(clicked_piece)
 			return
 
-		selected_legal_targets = build_legal_targets(selected_piece)
-		is_dragging = true
-		previous_position = selected_piece.position
-		selected_piece.z_index = 100
+		if clicked_piece != null and clicked_piece.color == status:
+			select_piece(clicked_piece)
+			return
 
-	elif event is InputEventMouseMotion and is_dragging:
+		var is_valid_move = try_move_to(pos)
+		if !is_valid_move:
+			return
+
+		clear_selection()
+		if evaluate_end_game():
+			return
+		call_deferred("player2_move")
+
+	elif event is InputEventMouseMotion and selected_piece != null and Input.is_action_pressed("left_click"):
+		is_dragging = true
 		selected_piece.position = get_global_mouse_position()
 
-	elif Input.is_action_just_pressed("escape") and is_dragging:
-		selected_piece.position = previous_position
-		selected_piece.z_index = 0
-		selected_piece = null
-		selected_legal_targets = {}
-		is_dragging = false
+	elif Input.is_action_just_pressed("escape") and selected_piece != null:
+		clear_selection()
 		return
 
 	elif Input.is_action_just_released("left_click") and is_dragging:
 		var is_valid_move = drop_piece()
-		
 		if !is_valid_move:
 			selected_piece.position = previous_position
-			selected_piece.z_index = 0
-			selected_piece = null
-			selected_legal_targets = {}
-			is_dragging = false
+			clear_selection()
 			return
 
-		selected_piece.z_index = 0
-		selected_piece = null
-		selected_legal_targets = {}
-		is_dragging = false
-
+		clear_selection()
 		if evaluate_end_game():
 			return
-
-		if is_valid_move:
-			call_deferred("player2_move")
+		call_deferred("player2_move")
 
 
 func init_game():
@@ -126,6 +124,11 @@ func get_pos_under_mouse():
 
 func drop_piece():
 	var to_move = get_pos_under_mouse()
+	return try_move_to(to_move)
+
+func try_move_to(to_move) -> bool:
+	if selected_piece == null:
+		return false
 	if not selected_legal_targets.is_empty():
 		if not selected_legal_targets.has(to_move):
 			return false
@@ -143,6 +146,24 @@ func drop_piece():
 
 		return true
 	return false
+
+func select_piece(piece):
+	board.clear_move_markers()
+	selected_piece = piece
+	selected_legal_targets = build_legal_targets(selected_piece)
+	for move in selected_legal_targets:
+		board.draw_move_marker(move)
+	previous_position = selected_piece.position
+	selected_piece.z_index = 100
+	is_dragging = false
+
+func clear_selection():
+	if selected_piece != null:
+		selected_piece.z_index = 0
+	selected_piece = null
+	selected_legal_targets = {}
+	is_dragging = false
+	board.clear_move_markers()
 
 func build_legal_targets(piece) -> Dictionary:
 	var targets = {}

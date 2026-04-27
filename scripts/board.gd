@@ -2,15 +2,19 @@ extends Node2D
 
 @export var pieces = []
 @export var piece_scene = preload("res://scenes/Piece.tscn")
+@export var marker_scene = preload("res://scenes/MoveMarker.tscn")
 
 @export var white_king_pos: Vector2
 @export var black_king_pos: Vector2
+
+@onready var marker_layer = Node2D.new()
 
 var piece_map = {}
 
 const CELL_SIZE = 90
 
 func _ready() -> void:
+	add_child(marker_layer)
 	draw_board()
 	init_pieces()
 
@@ -27,6 +31,16 @@ func draw_cell(x, y):
 	rect.position = Vector2(x * CELL_SIZE, y * CELL_SIZE)
 	rect.z_index = -100
 	add_child(rect)
+
+func draw_move_marker(pos):
+	var marker = marker_scene.instantiate()
+	marker.position = Vector2(CELL_SIZE * pos.x + CELL_SIZE / 2.0, CELL_SIZE * pos.y + CELL_SIZE / 2.0)
+	marker.scale = Vector2(1 / 3.0, 1 / 3.0)
+	marker_layer.add_child(marker)
+
+func clear_move_markers():
+	for child in marker_layer.get_children():
+		child.queue_free()
 
 func init_pieces():
 	for piece_tuple in Globals.INITIAL_PIECE_SET_SINGLE:
@@ -127,12 +141,3 @@ func spot_search_threat(own_color, cur_x, cur_y, inc_x, inc_y, threat_only = fal
 			return
 		return cur_pos if cur_piece.color != own_color else null
 	return cur_pos if not threat_only else null
-
-
-func clone():
-	var board = self.duplicate()
-	for i in range(len(pieces)):
-		var piece = pieces[i].clone(board)
-		board.pieces[i] = piece
-
-	return board
