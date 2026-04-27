@@ -25,10 +25,18 @@ func init_piece(type: Globals.PIECE_TYPES, col: Globals.COLORS, board_pos: Vecto
 
 	update_sprite()
 
-	position = Vector2(X_OFFSET + board_position[0] * CELL_SIZE, Y_OFFSET + board_position[1] * CELL_SIZE) 
+	update_position()
 
+
+func update_position():
+	position = Vector2(X_OFFSET + board_position[0] * CELL_SIZE, Y_OFFSET + board_position[1] * CELL_SIZE) 
 
 func update_sprite():
 	if sprite:
 		sprite.texture = load(Globals.SPRITE_MAPPING[color][piece_type])
 		sprite.scale = Vector2(float(CELL_SIZE) / SPRITE_SIZE, float(CELL_SIZE) / SPRITE_SIZE)
+
+func move_position(pos: Vector2):
+	moved = true
+	board_position = pos
+	update_position()

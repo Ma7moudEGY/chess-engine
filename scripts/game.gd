@@ -53,4 +53,18 @@ func get_pos_under_mouse():
 	return pos
 
 func drop_piece():
+	var to_move = get_pos_under_mouse()
+	if valid_move(selected_piece.position, to_move):
+		var dest_piece = board.get_piece(to_move)
+		if dest_piece != null and dest_piece.color != selected_piece.color:
+			board.delete_piece(dest_piece)
+
+		selected_piece.move_position(to_move)
+		status = Globals.COLORS.BLACK if status == Globals.COLORS.WHITE else Globals.COLORS.WHITE
+
+		return true
 	return false
+
+
+func valid_move(from_pos, to_pos):
+	return true

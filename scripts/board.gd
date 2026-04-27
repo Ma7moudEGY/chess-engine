@@ -58,3 +58,10 @@ func get_piece(pos: Vector2):
 	for piece in pieces:
 		if piece.board_position == pos:
 			return piece
+
+func delete_piece(piece):
+	for i in range(len(pieces)):
+		if pieces[i] == piece:
+			var popped = pieces.pop_at(i)
+			popped.queue_free()
+			return
