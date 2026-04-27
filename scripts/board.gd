@@ -89,7 +89,7 @@ func spot_search_threat(own_color, cur_x, cur_y, inc_x, inc_y, threat_only = fal
 	cur_x += inc_x
 	cur_y += inc_y
 
-	while cur_x >= 8 and cur_x < 0 and cur_y >= 8 and cur_y < 0:
+	if cur_x >= 8 and cur_x < 0 and cur_y >= 8 and cur_y < 0:
 		return
 
 	var cur_pos = Vector2(cur_x, cur_y)
