@@ -46,10 +46,6 @@ func move_position(to_move: Vector2):
 	if piece_type == Globals.PIECE_TYPES.KING:
 		board_handle.register_king(board_position, color)
 
-	if piece_type == Globals.PIECE_TYPES.PAWN and ((color == Globals.COLORS.BLACK and to_move[1] == 7) or (color == Globals.COLORS.WHITE and to_move[1] == 0)):
-		piece_type = Globals.PIECE_TYPES.QUEEN
-		update_sprite()
-
 func get_moveable_positions():
 	match piece_type:
 		Globals.PIECE_TYPES.PAWN: return pawn_move_pos()
@@ -161,13 +157,17 @@ const KING_CASTLE_OFFSETS = [[2, 0], [-2, 0]]
 func king_threat_pos():
 	var positions = []
 
-	if not moved:
-		for off in KING_CASTLE_OFFSETS:
-			var pos = board_handle.spot_search_threat(color, board_position[0], board_position[1],
-				off[0], off[1])
+	if not moved and board_position.x == 4:
+		var y = board_position.y
+		var rook_right = board_handle.get_piece(Vector2(7, y))
+		if rook_right != null and rook_right.piece_type == Globals.PIECE_TYPES.ROOK and rook_right.color == color and not rook_right.moved:
+			if board_handle.get_piece(Vector2(5, y)) == null and board_handle.get_piece(Vector2(6, y)) == null:
+				positions.append(Vector2(6, y))
 
-			if pos != null:
-				positions.append(pos)
+		var rook_left = board_handle.get_piece(Vector2(0, y))
+		if rook_left != null and rook_left.piece_type == Globals.PIECE_TYPES.ROOK and rook_left.color == color and not rook_left.moved:
+			if board_handle.get_piece(Vector2(3, y)) == null and board_handle.get_piece(Vector2(2, y)) == null and board_handle.get_piece(Vector2(1, y)) == null:
+				positions.append(Vector2(2, y))
 
 
 	for inc in KING_SPOT_INCREMENTS:

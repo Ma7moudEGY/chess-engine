@@ -12,21 +12,27 @@ var selected_piece = null
 var previous_position = null
 var selected_legal_targets = {}
 
+var pending_promotion_pawn = null
+
 # [from, to, moved, captured, prev_type, rook, rook_from, rook_to, rook_prev_moved, prev_ep_target, prev_ep_pawn]
 var moves = []
 
 @onready var board = $Board
 @onready var ui_control = $Control
 @onready var win_lable = $Control/WinLable
-
-
+@onready var promotion_ui = $Promotion
+@onready var k = $Promotion/Knight
+@onready var b = $Promotion/Bishop
+@onready var r = $Promotion/Rook
+@onready var q = $Promotion/Queen
 
 func _ready() -> void:
 	init_game()
 	ui_control.hide()
+	promotion_ui.hide()
 
 func _input(event: InputEvent) -> void:
-	if game_over:
+	if game_over or pending_promotion_pawn != null:
 		return
 
 	if Input.is_action_just_pressed("undo"):
@@ -54,6 +60,9 @@ func _input(event: InputEvent) -> void:
 		var is_valid_move = try_move_to(pos)
 		if !is_valid_move:
 			return
+		if pending_promotion_pawn != null:
+			clear_selection()
+			return
 
 		clear_selection()
 		if evaluate_end_game():
@@ -74,7 +83,9 @@ func _input(event: InputEvent) -> void:
 			selected_piece.position = previous_position
 			clear_selection()
 			return
-
+		if pending_promotion_pawn != null:
+			clear_selection()
+			return
 		clear_selection()
 		if evaluate_end_game():
 			return
@@ -87,7 +98,7 @@ func init_game():
 	is_dragging = false
 	player_color = Globals.COLORS.WHITE
 	status = Globals.COLORS.WHITE
-	player2_type = Globals.PLAYER_2_TYPE.AI # change to ai later
+	player2_type = Globals.PLAYER_2_TYPE.HUMAN # change to ai later
 
 func undo_move():
 	if !moves.is_empty():
@@ -178,6 +189,12 @@ func try_move_to(to_move) -> bool:
 		board.en_passant_target = null
 		board.en_passant_pawn = null
 
+		if selected_piece.piece_type == Globals.PIECE_TYPES.PAWN:
+			if (selected_piece.color == Globals.COLORS.WHITE and to_move.y == 0) or (selected_piece.color == Globals.COLORS.BLACK and to_move.y == 7):
+				pending_promotion_pawn = selected_piece
+				set_buttons_color(selected_piece.color)
+				promotion_ui.show()
+
 		moves.append([selected_piece.board_position, to_move, selected_piece.moved, dest_piece, prev_type, rook, rook_from, rook_to, rook_prev_moved, prev_ep_target, prev_ep_pawn])
 		selected_piece.move_position(to_move)
 
@@ -192,6 +209,13 @@ func try_move_to(to_move) -> bool:
 
 		return true
 	return false
+
+func set_buttons_color(col: Globals.COLORS):
+	k.set_texture_normal(load(Globals.SPRITE_MAPPING[col][Globals.PIECE_TYPES.KNIGHT]))
+	b.set_texture_normal(load(Globals.SPRITE_MAPPING[col][Globals.PIECE_TYPES.BISHOP]))
+	r.set_texture_normal(load(Globals.SPRITE_MAPPING[col][Globals.PIECE_TYPES.ROOK]))
+	q.set_texture_normal(load(Globals.SPRITE_MAPPING[col][Globals.PIECE_TYPES.QUEEN]))
+
 
 func select_piece(piece):
 	board.clear_move_markers()
@@ -350,9 +374,6 @@ func unique(arr: Array) -> Array:
 func player2_move():
 	if player2_type == Globals.PLAYER_2_TYPE.AI:
 		var valid_moves = get_valid_moves()
-		if valid_moves.is_empty():
-			set_win(Globals.PLAYER.ONE)
-			return
 
 		var move = valid_moves.pick_random()
 		var piece = move[0]
@@ -391,6 +412,10 @@ func player2_move():
 		board.en_passant_pawn = null
 		moves.append([piece.board_position, move[1], piece.moved, dest_piece, prev_type, rook, rook_from, rook_to, rook_prev_moved, prev_ep_target, prev_ep_pawn])
 		piece.move_position(pos)
+		if piece.piece_type == Globals.PIECE_TYPES.PAWN:
+			if (piece.color == Globals.COLORS.WHITE and pos.y == 0) or (piece.color == Globals.COLORS.BLACK and pos.y == 7):
+				piece.piece_type = Globals.PIECE_TYPES.QUEEN
+				piece.update_sprite()
 		if piece.piece_type == Globals.PIECE_TYPES.PAWN and abs(pos.y - moves[-1][0].y) == 2:
 			var step = 1 if piece.color == Globals.COLORS.BLACK else -1
 			board.en_passant_target = Vector2(pos.x, pos.y - step)
@@ -401,8 +426,13 @@ func player2_move():
 func evaluate_end_game():
 	var m = get_valid_moves()
 	if m.is_empty():
-		set_win(Globals.PLAYER.TWO if status == player_color else Globals.PLAYER.ONE)
-		return true
+		if is_king_in_check(Globals.COLORS.WHITE if status == Globals.COLORS.WHITE else Globals.COLORS.BLACK):
+			set_win(Globals.PLAYER.TWO if status == player_color else Globals.PLAYER.ONE)
+			return true
+		else:
+			set_draw()
+			return true
+	#else check for other draw conditions
 	return false
 
 func set_win(who: Globals.PLAYER):
@@ -415,6 +445,56 @@ func set_win(who: Globals.PLAYER):
 	win_lable.show()
 	ui_control.show()
 
+func set_draw():
+	game_over = true
+	win_lable.text = "IT'S A DRAW"
+	win_lable.show()
+	ui_control.show()
+
 
 func _on_button_pressed() -> void:
 	get_tree().reload_current_scene()
+
+
+func _on_knight_pressed() -> void:
+	pending_promotion_pawn.piece_type = Globals.PIECE_TYPES.KNIGHT
+	pending_promotion_pawn.update_sprite()
+	promotion_ui.hide()
+	pending_promotion_pawn = null
+	if evaluate_end_game():
+		return
+	if player2_type == Globals.PLAYER_2_TYPE.AI and status == Globals.COLORS.BLACK:
+		call_deferred("player2_move")
+
+
+func _on_bishop_pressed() -> void:
+	pending_promotion_pawn.piece_type = Globals.PIECE_TYPES.BISHOP
+	pending_promotion_pawn.update_sprite()
+	promotion_ui.hide()
+	pending_promotion_pawn = null
+	if evaluate_end_game():
+		return
+	if player2_type == Globals.PLAYER_2_TYPE.AI and status == Globals.COLORS.BLACK:
+		call_deferred("player2_move")
+
+
+func _on_rook_pressed() -> void:
+	pending_promotion_pawn.piece_type = Globals.PIECE_TYPES.ROOK
+	pending_promotion_pawn.update_sprite()
+	promotion_ui.hide()
+	pending_promotion_pawn = null
+	if evaluate_end_game():
+		return
+	if player2_type == Globals.PLAYER_2_TYPE.AI and status == Globals.COLORS.BLACK:
+		call_deferred("player2_move")
+
+
+func _on_queen_pressed() -> void:
+	pending_promotion_pawn.piece_type = Globals.PIECE_TYPES.QUEEN
+	pending_promotion_pawn.update_sprite()
+	promotion_ui.hide()
+	pending_promotion_pawn = null
+	if evaluate_end_game():
+		return
+	if player2_type == Globals.PLAYER_2_TYPE.AI and status == Globals.COLORS.BLACK:
+		call_deferred("player2_move")

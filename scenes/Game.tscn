@@ -10,10 +10,17 @@ script = ExtResource("1_qbsmt")
 script = ExtResource("2_cpr0p")
 
 [node name="Control" type="Control" parent="." unique_id=1067022699]
+visible = false
 layout_mode = 3
 anchors_preset = 0
 offset_right = 720.0
 offset_bottom = 720.0
+
+[node name="ColorRect" type="ColorRect" parent="Control" unique_id=1521622537]
+layout_mode = 0
+offset_right = 720.0
+offset_bottom = 720.0
+color = Color(0.11372549, 0.11372549, 0.11372549, 0.4)
 
 [node name="WinLable" type="Label" parent="Control" unique_id=1859352267]
 z_index = 10
@@ -32,12 +39,6 @@ grow_vertical = 2
 theme_override_font_sizes/font_size = 36
 text = "Player ONE WON!"
 
-[node name="ColorRect" type="ColorRect" parent="Control" unique_id=1521622537]
-layout_mode = 0
-offset_right = 720.0
-offset_bottom = 720.0
-color = Color(0.11372549, 0.11372549, 0.11372549, 0.4)
-
 [node name="Button" type="Button" parent="Control" unique_id=1836118015]
 layout_mode = 1
 anchors_preset = 7
@@ -53,4 +54,80 @@ grow_horizontal = 2
 grow_vertical = 0
 text = "Play again"
 
+[node name="Promotion" type="Control" parent="." unique_id=757648334]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 720.0
+offset_bottom = 720.0
+
+[node name="ColorRect" type="ColorRect" parent="Promotion" unique_id=1198388252]
+layout_mode = 0
+offset_right = 720.0
+offset_bottom = 720.0
+color = Color(0.11372549, 0.11372549, 0.11372549, 0.4)
+
+[node name="Knight" type="TextureButton" parent="Promotion" unique_id=566415116]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -168.0
+offset_top = -64.0
+offset_right = -40.0
+offset_bottom = 64.0
+grow_horizontal = 2
+grow_vertical = 2
+scale = Vector2(0.5, 0.5)
+
+[node name="Bishop" type="TextureButton" parent="Promotion" unique_id=299461136]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -72.0
+offset_top = -64.0
+offset_right = 56.0
+offset_bottom = 64.0
+grow_horizontal = 2
+grow_vertical = 2
+scale = Vector2(0.5, 0.5)
+
+[node name="Rook" type="TextureButton" parent="Promotion" unique_id=381171405]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = 24.0
+offset_top = -64.0
+offset_right = 152.0
+offset_bottom = 64.0
+grow_horizontal = 2
+grow_vertical = 2
+scale = Vector2(0.5, 0.5)
+
+[node name="Queen" type="TextureButton" parent="Promotion" unique_id=1791061130]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = 120.0
+offset_top = -64.0
+offset_right = 248.0
+offset_bottom = 64.0
+grow_horizontal = 2
+grow_vertical = 2
+scale = Vector2(0.5, 0.5)
+
 [connection signal="pressed" from="Control/Button" to="." method="_on_button_pressed"]
+[connection signal="pressed" from="Promotion/Knight" to="." method="_on_knight_pressed"]
+[connection signal="pressed" from="Promotion/Bishop" to="." method="_on_bishop_pressed"]
+[connection signal="pressed" from="Promotion/Rook" to="." method="_on_rook_pressed"]
+[connection signal="pressed" from="Promotion/Queen" to="." method="_on_queen_pressed"]
