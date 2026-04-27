@@ -12,7 +12,7 @@ var selected_piece = null
 var previous_position = null
 var selected_legal_targets = {}
 
-# [from, to, moved, captured, prev_type]
+# [from, to, moved, captured, prev_type, rook, rook_from, rook_to, rook_prev_moved]
 var moves = []
 
 @onready var board = $Board
@@ -103,6 +103,11 @@ func undo_move():
 		if captured != null:
 			board.restore_piece(captured)
 
+		var rook = move[5]
+		if rook != null:
+			rook.move_position(move[6])
+			rook.moved = move[8]
+
 		status = Globals.COLORS.BLACK if status == Globals.COLORS.WHITE else Globals.COLORS.WHITE
 
 # func redo_move():
@@ -138,7 +143,28 @@ func try_move_to(to_move) -> bool:
 			board.delete_piece(dest_piece, false)
 
 		var prev_type = selected_piece.piece_type
-		moves.append([selected_piece.board_position, to_move, selected_piece.moved, dest_piece, prev_type])
+
+		var rook = null
+		var rook_from = null
+		var rook_to = null
+		var rook_prev_moved = null
+
+		if selected_piece.piece_type == Globals.PIECE_TYPES.KING and abs(to_move.x - selected_piece.board_position.x) == 2:
+			var y = selected_piece.board_position.y
+			if to_move.x > selected_piece.board_position.x:
+				rook_from = Vector2(7, y)
+				rook_to = Vector2(selected_piece.board_position.x + 1, y)
+			else:
+				rook_from = Vector2(0, y)
+				rook_to = Vector2(selected_piece.board_position.x - 1, y)
+
+			rook = board.get_piece(rook_from)
+			if rook != null:
+				rook_prev_moved = rook.moved
+				rook.move_position(rook_to)
+				rook.moved = true
+
+		moves.append([selected_piece.board_position, to_move, selected_piece.moved, dest_piece, prev_type, rook, rook_from, rook_to, rook_prev_moved])
 		selected_piece.move_position(to_move)
 		status = Globals.COLORS.BLACK if status == Globals.COLORS.WHITE else Globals.COLORS.WHITE
 		if DEBUG_LOG:
@@ -181,9 +207,28 @@ func simulate_move(from_pos, to_pos):
 	var moved = piece.moved
 	var prev_pos = piece.board_position
 	var prev_type = piece.piece_type
+	var rook = null
+	var rook_from = null
+	var rook_to = null
+	var rook_prev_moved = null
 
 	if dest_piece != null:
 		board.delete_piece(dest_piece, false)
+
+	if piece.piece_type == Globals.PIECE_TYPES.KING and abs(to_pos.x - from_pos.x) == 2:
+		var y = from_pos.y
+		if to_pos.x > from_pos.x:
+			rook_from = Vector2(7, y)
+			rook_to = Vector2(from_pos.x + 1, y)
+		else:
+			rook_from = Vector2(0, y)
+			rook_to = Vector2(from_pos.x - 1, y)
+
+		rook = board.get_piece(rook_from)
+		if rook != null:
+			rook_prev_moved = rook.moved
+			rook.move_position(rook_to)
+			rook.moved = true
 
 	piece.move_position(to_pos)
 
@@ -192,7 +237,11 @@ func simulate_move(from_pos, to_pos):
 		"dest_piece": dest_piece,
 		"moved": moved,
 		"prev_pos": prev_pos,
-		"prev_type": prev_type
+		"prev_type": prev_type,
+		"rook": rook,
+		"rook_from": rook_from,
+		"rook_to": rook_to,
+		"rook_prev_moved": rook_prev_moved
 	}
 
 func undo_simulated_move(state: Dictionary):
@@ -210,6 +259,11 @@ func undo_simulated_move(state: Dictionary):
 	if dest_piece != null:
 		board.restore_piece(dest_piece)
 
+	var rook = state["rook"]
+	if rook != null:
+		rook.move_position(state["rook_from"])
+		rook.moved = state["rook_prev_moved"]
+
 func is_king_in_check(to_check: Globals.COLORS):
 	var king_pos = board.white_king_pos if to_check == Globals.COLORS.WHITE else board.black_king_pos
 
@@ -219,11 +273,29 @@ func is_king_in_check(to_check: Globals.COLORS):
 
 	return false
 
+func is_square_attacked(pos, col):
+	for piece in board.pieces:
+		if piece.color == col and pos in piece.get_threatened_positions():
+			return true
+	return false
+
 func valid_move(from_pos, to_pos):
 	var src_piece = board.get_piece(from_pos)
 
 	if (to_pos not in src_piece.get_moveable_positions() and to_pos not in src_piece.get_threatened_positions()):
 		return false
+
+	if src_piece.piece_type == Globals.PIECE_TYPES.KING and abs(to_pos.x - from_pos.x) == 2:
+		var enemy = Globals.COLORS.BLACK if status == Globals.COLORS.WHITE else Globals.COLORS.WHITE
+		if is_square_attacked(from_pos, enemy):
+			return false
+
+		var step = 1 if to_pos.x > from_pos.x else -1
+		var pass_sqaure = from_pos + Vector2(step, 0)
+		if is_square_attacked(pass_sqaure, enemy):
+			return false
+		if is_square_attacked(to_pos, enemy):
+			return false
 
 	var state = simulate_move(from_pos, to_pos)
 	var illegal = is_king_in_check(status)
@@ -264,7 +336,27 @@ func player2_move():
 		if dest_piece != null and dest_piece.color != piece.color:
 			board.delete_piece(dest_piece, false)
 		var prev_type = piece.piece_type
-		moves.append([piece.board_position, move[1], piece.moved, dest_piece, prev_type])
+		var rook = null
+		var rook_from = null
+		var rook_to = null
+		var rook_prev_moved = null
+
+		if piece.piece_type == Globals.PIECE_TYPES.KING and abs(pos.x - piece.board_position.x) == 2:
+			var y = piece.board_position.y
+			if pos.x > piece.board_position.x:
+				rook_from = Vector2(7, y)
+				rook_to = Vector2(piece.board_position.x + 1, y)
+			else:
+				rook_from = Vector2(0, y)
+				rook_to = Vector2(piece.board_position.x - 1, y)
+
+			rook = board.get_piece(rook_from)
+			if rook != null:
+				rook_prev_moved = rook.moved
+				rook.move_position(rook_to)
+				rook.moved = true
+
+		moves.append([piece.board_position, move[1], piece.moved, dest_piece, prev_type, rook, rook_from, rook_to, rook_prev_moved])
 		piece.move_position(pos)
 		status = Globals.COLORS.BLACK if status == Globals.COLORS.WHITE else Globals.COLORS.WHITE
 		evaluate_end_game()

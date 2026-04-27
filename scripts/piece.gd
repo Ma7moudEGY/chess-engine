@@ -150,14 +150,23 @@ func queen_threat_pos():
 
 const KING_SPOT_INCREMENTS = [[1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1]]
 
-func king_threat_pos():
+const KING_CASTLE_OFFSETS = [[2, 0], [-2, 0]]
 
+func king_threat_pos():
 	var positions = []
+
+	if not moved:
+		for off in KING_CASTLE_OFFSETS:
+			var pos = board_handle.spot_search_threat(color, board_position[0], board_position[1],
+				off[0], off[1])
+
+			if pos != null:
+				positions.append(pos)
+
+
 	for inc in KING_SPOT_INCREMENTS:
 		var pos = board_handle.spot_search_threat(color, board_position[0], board_position[1],
 			inc[0], inc[1])
 		if pos != null:
 			positions.append(pos)
 	return positions
-
-
