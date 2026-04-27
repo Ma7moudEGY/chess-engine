@@ -53,3 +53,8 @@ func register_king(pos, col):
 
 		Globals.COLORS.BLACK:
 			black_king_pos = pos
+
+func get_piece(pos: Vector2):
+	for piece in pieces:
+		if piece.board_position == pos:
+			return piece
