@@ -60,11 +60,9 @@ func _input(event: InputEvent) -> void:
 		var is_valid_move = try_move_to(pos)
 		if !is_valid_move:
 			return
-		if pending_promotion_pawn != null:
-			clear_selection()
-			return
-
 		clear_selection()
+		if pending_promotion_pawn != null:
+			return
 		if evaluate_end_game():
 			return
 		call_deferred("player2_move")
@@ -83,10 +81,9 @@ func _input(event: InputEvent) -> void:
 			selected_piece.position = previous_position
 			clear_selection()
 			return
-		if pending_promotion_pawn != null:
-			clear_selection()
-			return
 		clear_selection()
+		if pending_promotion_pawn != null:
+			return
 		if evaluate_end_game():
 			return
 		if player2_type == Globals.PLAYER_2_TYPE.AI and status == Globals.COLORS.BLACK: 
