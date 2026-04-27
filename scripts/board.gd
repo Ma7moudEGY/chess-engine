@@ -6,6 +6,8 @@ extends Node2D
 @export var white_king_pos: Vector2
 @export var black_king_pos: Vector2
 
+var piece_map = {}
+
 const CELL_SIZE = 90
 
 func _ready() -> void:
@@ -36,11 +38,13 @@ func init_pieces():
 		add_child(black_piece)
 		black_piece.init_piece(piece_type, Globals.COLORS.BLACK, black_piece_pos, self)
 		pieces.append(black_piece)
+		_register_piece(black_piece)
 
 		var white_piece = piece_scene.instantiate()
 		add_child(white_piece)
 		white_piece.init_piece(piece_type, Globals.COLORS.WHITE, white_piece_pos, self)
 		pieces.append(white_piece)
+		_register_piece(white_piece)
 
 		if piece_type == Globals.PIECE_TYPES.KING:
 			register_king(white_piece_pos, Globals.COLORS.WHITE)
@@ -55,16 +59,39 @@ func register_king(pos, col):
 			black_king_pos = pos
 
 func get_piece(pos: Vector2):
-	for piece in pieces:
-		if piece.board_position == pos:
-			return piece
+	return piece_map.get(_key(pos), null)
 
-func delete_piece(piece):
-	for i in range(len(pieces)):
-		if pieces[i] == piece:
-			var popped = pieces.pop_at(i)
-			popped.queue_free()
-			return
+func _key(pos):
+	return Vector2i(int(pos.x), int(pos.y))
+
+func _register_piece(piece):
+	piece_map[_key(piece.board_position)] = piece
+
+func _unregister_piece(piece):
+	piece_map.erase(_key(piece.board_position))
+
+func move_piece_in_map(piece, from_pos, to_pos):
+	piece_map.erase(_key(from_pos))
+	piece_map[_key(to_pos)] = piece
+
+func delete_piece(piece, free_piece):
+	_unregister_piece(piece)
+	pieces.erase(piece)
+	if free_piece:
+		piece.queue_free()
+	else:
+		piece.visible = false
+
+func restore_piece(piece):
+	if piece == null:
+		return
+
+	if piece in pieces:
+		return
+
+	pieces.append(piece)
+	_register_piece(piece)
+	piece.visible = true
 
 func beam_search_threat(own_color, cur_x, cur_y, inc_x, inc_y):
 	var threat_pos = []

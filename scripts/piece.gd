@@ -37,8 +37,10 @@ func update_sprite():
 		sprite.scale = Vector2(float(CELL_SIZE) / SPRITE_SIZE, float(CELL_SIZE) / SPRITE_SIZE)
 
 func move_position(to_move: Vector2):
+	var old_pos = board_position
 	moved = true
 	board_position = to_move
+	board_handle.move_piece_in_map(self, old_pos, to_move)
 	update_position()
 
 	if piece_type == Globals.PIECE_TYPES.KING:
@@ -48,14 +50,9 @@ func move_position(to_move: Vector2):
 		piece_type = Globals.PIECE_TYPES.QUEEN
 		update_sprite()
 
-func clone(_board):
-	var piece = self.duplicate()
-	piece.board_handle = _board
-	return piece
-
 func get_moveable_positions():
 	match piece_type:
-		Globals.PIECE_TYPES.PAWN: return pawn_threat_pos()
+		Globals.PIECE_TYPES.PAWN: return pawn_move_pos()
 		Globals.PIECE_TYPES.BISHOP: return bishop_threat_pos()
 		Globals.PIECE_TYPES.ROOK: return rook_threat_pos()
 		Globals.PIECE_TYPES.KNIGHT: return knight_threat_pos()
@@ -65,7 +62,7 @@ func get_moveable_positions():
 
 func get_threatened_positions():
 	match piece_type:
-		Globals.PIECE_TYPES.PAWN: return pawn_move_pos()
+		Globals.PIECE_TYPES.PAWN: return pawn_threat_pos()
 		Globals.PIECE_TYPES.BISHOP: return bishop_threat_pos()
 		Globals.PIECE_TYPES.ROOK: return rook_threat_pos()
 		Globals.PIECE_TYPES.KNIGHT: return knight_threat_pos()

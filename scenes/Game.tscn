@@ -8,3 +8,49 @@ script = ExtResource("1_qbsmt")
 
 [node name="Board" type="Node2D" parent="." unique_id=160282334]
 script = ExtResource("2_cpr0p")
+
+[node name="Control" type="Control" parent="." unique_id=1067022699]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 720.0
+offset_bottom = 720.0
+
+[node name="WinLable" type="Label" parent="Control" unique_id=1859352267]
+z_index = 10
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -154.0
+offset_top = -26.0
+offset_right = 154.0
+offset_bottom = 26.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_font_sizes/font_size = 36
+text = "Player ONE WON!"
+
+[node name="ColorRect" type="ColorRect" parent="Control" unique_id=1521622537]
+layout_mode = 0
+offset_right = 720.0
+offset_bottom = 720.0
+color = Color(0.11372549, 0.11372549, 0.11372549, 0.4)
+
+[node name="Button" type="Button" parent="Control" unique_id=1836118015]
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -56.0
+offset_top = -320.0
+offset_right = 72.0
+offset_bottom = -289.0
+grow_horizontal = 2
+grow_vertical = 0
+text = "Play again"
+
+[connection signal="pressed" from="Control/Button" to="." method="_on_button_pressed"]
