@@ -65,3 +65,47 @@ func delete_piece(piece):
 			var popped = pieces.pop_at(i)
 			popped.queue_free()
 			return
+
+func beam_search_threat(own_color, cur_x, cur_y, inc_x, inc_y):
+	var threat_pos = []
+
+	cur_x += inc_x
+	cur_y += inc_y
+
+	while cur_x >= 0 and cur_x < 8 and cur_y >= 0 and cur_y < 8:
+		var cur_pos = Vector2(cur_x, cur_y)
+		var cur_piece = get_piece(cur_pos)
+		if cur_piece != null:
+			if cur_piece.color != own_color:
+				threat_pos.append(cur_pos)
+			break
+		threat_pos.append(cur_pos)
+		cur_x += inc_x
+		cur_y += inc_y
+
+	return threat_pos
+
+func spot_search_threat(own_color, cur_x, cur_y, inc_x, inc_y, threat_only = false, free_only = false):
+	cur_x += inc_x
+	cur_y += inc_y
+
+	while cur_x >= 8 and cur_x < 0 and cur_y >= 8 and cur_y < 0:
+		return
+
+	var cur_pos = Vector2(cur_x, cur_y)
+	var cur_piece = get_piece(cur_pos)
+
+	if cur_piece != null:
+		if free_only:
+			return
+		return cur_pos if cur_piece.color != own_color else null
+	return cur_pos if not threat_only else null
+
+
+func clone():
+	var board = self.duplicate()
+	for i in range(len(pieces)):
+		var piece = pieces[i].clone(board)
+		board.pieces[i] = piece
+
+	return board
