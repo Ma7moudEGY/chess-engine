@@ -1,9 +1,14 @@
 extends Node2D
 
+@export var start_fen: String
+@export var current_fen: String
+
 var game_over
 var player_color
 var status
 var player2_type
+var halfmove_clock := 0
+var fullmove_number := 1
 
 const DEBUG_LOG := false
 
@@ -14,7 +19,7 @@ var selected_legal_targets = {}
 
 var pending_promotion_pawn = null
 
-# [from, to, moved, captured, prev_type, rook, rook_from, rook_to, rook_prev_moved, prev_ep_target, prev_ep_pawn, was_in_check]
+# [from, to, moved, captured, prev_type, rook, rook_from, rook_to, rook_prev_moved, prev_ep_target, prev_ep_pawn, was_in_check, prev_halfmove, prev_fullmove]
 var moves = []
 
 @onready var board = $Board
@@ -28,6 +33,8 @@ var moves = []
 
 func _ready() -> void:
 	init_game()
+	if start_fen != "":
+		load_fen(start_fen)
 	ui_control.hide()
 	promotion_ui.hide()
 
@@ -96,6 +103,30 @@ func init_game():
 	player_color = Globals.COLORS.WHITE
 	status = Globals.COLORS.WHITE
 	player2_type = Globals.PLAYER_2_TYPE.AI # change to ai later
+	halfmove_clock = 0
+	fullmove_number = 1
+
+func get_fen() -> String:
+	return board.get_fen(status, halfmove_clock, fullmove_number)
+
+func load_fen(fen: String) -> bool:
+	clear_selection()
+	board.clear_move_markers()
+	board.clear_check_marker()
+	pending_promotion_pawn = null
+	moves.clear()
+	board.en_passant_target = null
+	board.en_passant_pawn = null
+
+	var result = board.set_fen(fen)
+	if not result.get("ok", false):
+		return false
+
+	status = result["active_color"]
+	halfmove_clock = result["halfmove"]
+	fullmove_number = result["fullmove"]
+	game_over = false
+	return true
 
 func undo_move():
 	if !moves.is_empty():
@@ -127,7 +158,13 @@ func undo_move():
 		else:
 			board.clear_check_marker()
 
+		if move.size() > 12:
+			halfmove_clock = move[12]
+			fullmove_number = move[13]
+
 		status = Globals.COLORS.BLACK if status == Globals.COLORS.WHITE else Globals.COLORS.WHITE
+
+		current_fen = get_fen()
 
 # func redo_move():
 # 	if current_move < len(moves):
@@ -200,8 +237,15 @@ func try_move_to(to_move) -> bool:
 				promotion_ui.show()
 
 		var in_check = is_king_in_check(status)
+		var prev_halfmove = halfmove_clock
+		var prev_fullmove = fullmove_number
+		var is_pawn_move = selected_piece.piece_type == Globals.PIECE_TYPES.PAWN
+		var is_capture = dest_piece != null and dest_piece.color != selected_piece.color
+		halfmove_clock = 0 if is_pawn_move or is_capture else halfmove_clock + 1
+		if status == Globals.COLORS.BLACK:
+			fullmove_number += 1
 
-		moves.append([selected_piece.board_position, to_move, selected_piece.moved, dest_piece, prev_type, rook, rook_from, rook_to, rook_prev_moved, prev_ep_target, prev_ep_pawn, in_check])
+		moves.append([selected_piece.board_position, to_move, selected_piece.moved, dest_piece, prev_type, rook, rook_from, rook_to, rook_prev_moved, prev_ep_target, prev_ep_pawn, in_check, prev_halfmove, prev_fullmove])
 		selected_piece.move_position(to_move)
 
 		if selected_piece.piece_type == Globals.PIECE_TYPES.PAWN and abs(to_move.y - moves[-1][0].y) == 2:
@@ -217,6 +261,9 @@ func try_move_to(to_move) -> bool:
 		var king_pos = board.white_king_pos if status == Globals.COLORS.WHITE else board.black_king_pos
 		if is_king_in_check(status):
 			board.draw_check_marker(king_pos)
+
+		current_fen = get_fen()
+		print(current_fen)
 
 		if DEBUG_LOG:
 			print(moves)
@@ -426,8 +473,15 @@ func player2_move():
 		board.en_passant_pawn = null
 
 		var in_check = is_king_in_check(status)
+		var prev_halfmove = halfmove_clock
+		var prev_fullmove = fullmove_number
+		var is_pawn_move = piece.piece_type == Globals.PIECE_TYPES.PAWN
+		var is_capture = dest_piece != null and dest_piece.color != piece.color
+		halfmove_clock = 0 if is_pawn_move or is_capture else halfmove_clock + 1
+		if status == Globals.COLORS.BLACK:
+			fullmove_number += 1
 
-		moves.append([piece.board_position, move[1], piece.moved, dest_piece, prev_type, rook, rook_from, rook_to, rook_prev_moved, prev_ep_target, prev_ep_pawn, in_check])
+		moves.append([piece.board_position, move[1], piece.moved, dest_piece, prev_type, rook, rook_from, rook_to, rook_prev_moved, prev_ep_target, prev_ep_pawn, in_check, prev_halfmove, prev_fullmove])
 		piece.move_position(pos)
 		if piece.piece_type == Globals.PIECE_TYPES.PAWN:
 			if (piece.color == Globals.COLORS.WHITE and pos.y == 0) or (piece.color == Globals.COLORS.BLACK and pos.y == 7):
@@ -446,6 +500,10 @@ func player2_move():
 		var king_pos = board.white_king_pos if status == Globals.COLORS.WHITE else board.black_king_pos
 		if is_king_in_check(status):
 			board.draw_check_marker(king_pos)
+
+		current_fen = get_fen()
+		print(current_fen)
+
 
 		evaluate_end_game()
 

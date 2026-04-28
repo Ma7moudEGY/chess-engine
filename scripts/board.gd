@@ -128,6 +128,235 @@ func restore_piece(piece):
 	_register_piece(piece)
 	piece.visible = true
 
+func clear_pieces():
+	for piece in pieces:
+		piece.queue_free()
+	pieces.clear()
+	piece_map.clear()
+	white_king_pos = Vector2.ZERO
+	black_king_pos = Vector2.ZERO
+	en_passant_target = null
+	en_passant_pawn = null
+
+func get_fen(active_color: Globals.COLORS, halfmove_clock: int, fullmove_number: int) -> String:
+	var rows = []
+	for rank in range(8):
+		var empty_count = 0
+		var row = ""
+		for file in range(8):
+			var piece = get_piece(Vector2(file, rank))
+			if piece == null:
+				empty_count += 1
+				continue
+			if empty_count > 0:
+				row += str(empty_count)
+				empty_count = 0
+			row += _piece_to_fen_char(piece)
+		if empty_count > 0:
+			row += str(empty_count)
+		rows.append(row)
+
+	var active = "w" if active_color == Globals.COLORS.WHITE else "b"
+	var castling = _get_castling_rights()
+	var ep = _coord_to_algebraic(en_passant_target) if en_passant_target != null else "-"
+	return "/".join(rows) + " " + active + " " + castling + " " + ep + " " + str(halfmove_clock) + " " + str(fullmove_number)
+
+func set_fen(fen: String) -> Dictionary:
+	var fields = fen.strip_edges().split(" ")
+	if fields.size() < 6:
+		return {"ok": false}
+
+	var placement = fields[0]
+	var active = fields[1]
+	var castling = fields[2]
+	var ep = fields[3]
+	var halfmove = fields[4]
+	var fullmove = fields[5]
+	var rows = placement.split("/")
+	if rows.size() != 8:
+		return {"ok": false}
+
+	clear_pieces()
+
+	for rank in range(8):
+		var row = rows[rank]
+		var file = 0
+		for i in range(row.length()):
+			var ch = row[i]
+			if ch.is_valid_int():
+				file += int(ch)
+				if file > 8:
+					return {"ok": false}
+				continue
+
+			var piece_type = _fen_char_to_piece_type(ch)
+			if piece_type == null:
+				return {"ok": false}
+			var col = Globals.COLORS.WHITE if (ch.to_upper() == ch) else Globals.COLORS.BLACK
+			var pos = Vector2(file, rank)
+			var piece = piece_scene.instantiate()
+			add_child(piece)
+			piece.init_piece(piece_type, col, pos, self)
+			pieces.append(piece)
+			_register_piece(piece)
+			if piece_type == Globals.PIECE_TYPES.KING:
+				register_king(pos, col)
+			file += 1
+
+		if file != 8:
+			return {"ok": false}
+
+	var active_color = Globals.COLORS.WHITE if active == "w" else Globals.COLORS.BLACK if active == "b" else null
+	if active_color == null:
+		return {"ok": false}
+
+	if not _apply_castling_rights(castling):
+		return {"ok": false}
+
+	if ep != "-":
+		en_passant_target = _algebraic_to_coord(ep)
+		if en_passant_target == null:
+			return {"ok": false}
+		en_passant_pawn = _find_en_passant_pawn(en_passant_target, active_color)
+
+	if not halfmove.is_valid_int() or not fullmove.is_valid_int():
+		return {"ok": false}
+
+	return {"ok": true, "active_color": active_color, "halfmove": int(halfmove), "fullmove": int(fullmove)}
+
+func _get_castling_rights() -> String:
+	var rights = ""
+	var white_king = _find_king(Globals.COLORS.WHITE)
+	var black_king = _find_king(Globals.COLORS.BLACK)
+
+	if white_king != null and not white_king.moved and white_king.board_position == Vector2(4, 7):
+		var rook_h1 = get_piece(Vector2(7, 7))
+		if rook_h1 != null and rook_h1.piece_type == Globals.PIECE_TYPES.ROOK and not rook_h1.moved and rook_h1.color == Globals.COLORS.WHITE:
+			rights += "K"
+		var rook_a1 = get_piece(Vector2(0, 7))
+		if rook_a1 != null and rook_a1.piece_type == Globals.PIECE_TYPES.ROOK and not rook_a1.moved and rook_a1.color == Globals.COLORS.WHITE:
+			rights += "Q"
+
+	if black_king != null and not black_king.moved and black_king.board_position == Vector2(4, 0):
+		var rook_h8 = get_piece(Vector2(7, 0))
+		if rook_h8 != null and rook_h8.piece_type == Globals.PIECE_TYPES.ROOK and not rook_h8.moved and rook_h8.color == Globals.COLORS.BLACK:
+			rights += "k"
+		var rook_a8 = get_piece(Vector2(0, 0))
+		if rook_a8 != null and rook_a8.piece_type == Globals.PIECE_TYPES.ROOK and not rook_a8.moved and rook_a8.color == Globals.COLORS.BLACK:
+			rights += "q"
+
+	return rights if rights != "" else "-"
+
+func _apply_castling_rights(castling: String) -> bool:
+	if castling == "-":
+		castling = ""
+
+	var white_king = _find_king(Globals.COLORS.WHITE)
+	var black_king = _find_king(Globals.COLORS.BLACK)
+
+	for piece in pieces:
+		if piece.piece_type == Globals.PIECE_TYPES.KING or piece.piece_type == Globals.PIECE_TYPES.ROOK:
+			piece.moved = true
+		elif piece.piece_type == Globals.PIECE_TYPES.PAWN:
+			var start_rank = 6 if piece.color == Globals.COLORS.WHITE else 1
+			piece.moved = piece.board_position.y != start_rank
+		else:
+			piece.moved = true
+
+	if white_king != null and white_king.board_position == Vector2(4, 7):
+		if "K" in castling:
+			var rook_h1 = get_piece(Vector2(7, 7))
+			if rook_h1 != null and rook_h1.piece_type == Globals.PIECE_TYPES.ROOK and rook_h1.color == Globals.COLORS.WHITE:
+				white_king.moved = false
+				rook_h1.moved = false
+		if "Q" in castling:
+			var rook_a1 = get_piece(Vector2(0, 7))
+			if rook_a1 != null and rook_a1.piece_type == Globals.PIECE_TYPES.ROOK and rook_a1.color == Globals.COLORS.WHITE:
+				white_king.moved = false
+				rook_a1.moved = false
+
+	if black_king != null and black_king.board_position == Vector2(4, 0):
+		if "k" in castling:
+			var rook_h8 = get_piece(Vector2(7, 0))
+			if rook_h8 != null and rook_h8.piece_type == Globals.PIECE_TYPES.ROOK and rook_h8.color == Globals.COLORS.BLACK:
+				black_king.moved = false
+				rook_h8.moved = false
+		if "q" in castling:
+			var rook_a8 = get_piece(Vector2(0, 0))
+			if rook_a8 != null and rook_a8.piece_type == Globals.PIECE_TYPES.ROOK and rook_a8.color == Globals.COLORS.BLACK:
+				black_king.moved = false
+				rook_a8.moved = false
+
+	return true
+
+func _find_king(col: Globals.COLORS):
+	for piece in pieces:
+		if piece.piece_type == Globals.PIECE_TYPES.KING and piece.color == col:
+			return piece
+	return null
+
+func _coord_to_algebraic(pos: Vector2) -> String:
+	var file = int(pos.x)
+	var rank = 8 - int(pos.y)
+	return char(97 + file) + str(rank)
+
+func _algebraic_to_coord(square: String):
+	if square.length() != 2:
+		return null
+	var file_char = square[0].to_lower()
+	var rank_char = square[1]
+	if file_char < "a" or file_char > "h" or not rank_char.is_valid_int():
+		return null
+	var file = int(file_char.unicode_at(0) - 97)
+	var rank = int(rank_char)
+	if rank < 1 or rank > 8:
+		return null
+	return Vector2(file, 8 - rank)
+
+func _find_en_passant_pawn(target: Vector2, active_color: Globals.COLORS):
+	var pawn_y = target.y - 1 if active_color == Globals.COLORS.WHITE else target.y + 1
+	var pawn_pos = Vector2(target.x, pawn_y)
+	var pawn = get_piece(pawn_pos)
+	if pawn != null and pawn.piece_type == Globals.PIECE_TYPES.PAWN and pawn.color != active_color:
+		return pawn
+	return null
+
+func _fen_char_to_piece_type(ch: String):
+	match ch.to_lower():
+		"p":
+			return Globals.PIECE_TYPES.PAWN
+		"r":
+			return Globals.PIECE_TYPES.ROOK
+		"n":
+			return Globals.PIECE_TYPES.KNIGHT
+		"b":
+			return Globals.PIECE_TYPES.BISHOP
+		"q":
+			return Globals.PIECE_TYPES.QUEEN
+		"k":
+			return Globals.PIECE_TYPES.KING
+		_:
+			return null
+
+func _piece_to_fen_char(piece) -> String:
+	var ch := ""
+	match piece.piece_type:
+		Globals.PIECE_TYPES.PAWN:
+			ch = "p"
+		Globals.PIECE_TYPES.ROOK:
+			ch = "r"
+		Globals.PIECE_TYPES.KNIGHT:
+			ch = "n"
+		Globals.PIECE_TYPES.BISHOP:
+			ch = "b"
+		Globals.PIECE_TYPES.QUEEN:
+			ch = "q"
+		Globals.PIECE_TYPES.KING:
+			ch = "k"
+	if piece.color == Globals.COLORS.WHITE:
+		return ch.to_upper()
+	return ch
+
 func beam_search_threat(own_color, cur_x, cur_y, inc_x, inc_y):
 	var threat_pos = []
 
