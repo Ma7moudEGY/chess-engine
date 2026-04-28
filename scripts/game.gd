@@ -35,6 +35,9 @@ func _ready() -> void:
 	init_game()
 	if start_fen != "":
 		load_fen(start_fen)
+		if status == Globals.COLORS.BLACK and player2_type == Globals.PLAYER_2_TYPE.AI:
+			player2_move()
+
 	ui_control.hide()
 	promotion_ui.hide()
 
