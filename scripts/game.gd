@@ -14,7 +14,7 @@ var selected_legal_targets = {}
 
 var pending_promotion_pawn = null
 
-# [from, to, moved, captured, prev_type, rook, rook_from, rook_to, rook_prev_moved, prev_ep_target, prev_ep_pawn]
+# [from, to, moved, captured, prev_type, rook, rook_from, rook_to, rook_prev_moved, prev_ep_target, prev_ep_pawn, was_in_check]
 var moves = []
 
 @onready var board = $Board
@@ -95,12 +95,13 @@ func init_game():
 	is_dragging = false
 	player_color = Globals.COLORS.WHITE
 	status = Globals.COLORS.WHITE
-	player2_type = Globals.PLAYER_2_TYPE.HUMAN # change to ai later
+	player2_type = Globals.PLAYER_2_TYPE.AI # change to ai later
 
 func undo_move():
 	if !moves.is_empty():
-		if DEBUG_LOG:
-			print(moves)
+		# if DEBUG_LOG:
+		# 	print(moves)
+		var king_pos = board.white_king_pos if status != Globals.COLORS.WHITE else board.black_king_pos
 		var move = moves.pop_back()
 		var src_piece = board.get_piece(move[1])
 		src_piece.move_position(move[0])
@@ -120,6 +121,11 @@ func undo_move():
 		if move.size() > 9:
 			board.en_passant_target = move[9]
 			board.en_passant_pawn = move[10]
+
+		if move[11] == true:
+			board.draw_check_marker(king_pos)
+		else:
+			board.clear_check_marker()
 
 		status = Globals.COLORS.BLACK if status == Globals.COLORS.WHITE else Globals.COLORS.WHITE
 
@@ -150,6 +156,7 @@ func try_move_to(to_move) -> bool:
 	if not selected_legal_targets.is_empty():
 		if not selected_legal_targets.has(to_move):
 			return false
+
 	if valid_move(selected_piece.board_position, to_move):
 		var dest_piece = board.get_piece(to_move)
 		if selected_piece.piece_type == Globals.PIECE_TYPES.PAWN and dest_piece == null and board.en_passant_target != null:
@@ -192,7 +199,9 @@ func try_move_to(to_move) -> bool:
 				set_buttons_color(selected_piece.color)
 				promotion_ui.show()
 
-		moves.append([selected_piece.board_position, to_move, selected_piece.moved, dest_piece, prev_type, rook, rook_from, rook_to, rook_prev_moved, prev_ep_target, prev_ep_pawn])
+		var in_check = is_king_in_check(status)
+
+		moves.append([selected_piece.board_position, to_move, selected_piece.moved, dest_piece, prev_type, rook, rook_from, rook_to, rook_prev_moved, prev_ep_target, prev_ep_pawn, in_check])
 		selected_piece.move_position(to_move)
 
 		if selected_piece.piece_type == Globals.PIECE_TYPES.PAWN and abs(to_move.y - moves[-1][0].y) == 2:
@@ -200,7 +209,15 @@ func try_move_to(to_move) -> bool:
 			board.en_passant_target = Vector2(to_move.x, to_move.y - step)
 			board.en_passant_pawn = selected_piece
 
+		if !is_king_in_check(status):
+			board.clear_check_marker()
+
 		status = Globals.COLORS.BLACK if status == Globals.COLORS.WHITE else Globals.COLORS.WHITE
+
+		var king_pos = board.white_king_pos if status == Globals.COLORS.WHITE else board.black_king_pos
+		if is_king_in_check(status):
+			board.draw_check_marker(king_pos)
+
 		if DEBUG_LOG:
 			print(moves)
 
@@ -407,7 +424,10 @@ func player2_move():
 
 		board.en_passant_target = null
 		board.en_passant_pawn = null
-		moves.append([piece.board_position, move[1], piece.moved, dest_piece, prev_type, rook, rook_from, rook_to, rook_prev_moved, prev_ep_target, prev_ep_pawn])
+
+		var in_check = is_king_in_check(status)
+
+		moves.append([piece.board_position, move[1], piece.moved, dest_piece, prev_type, rook, rook_from, rook_to, rook_prev_moved, prev_ep_target, prev_ep_pawn, in_check])
 		piece.move_position(pos)
 		if piece.piece_type == Globals.PIECE_TYPES.PAWN:
 			if (piece.color == Globals.COLORS.WHITE and pos.y == 0) or (piece.color == Globals.COLORS.BLACK and pos.y == 7):
@@ -417,7 +437,16 @@ func player2_move():
 			var step = 1 if piece.color == Globals.COLORS.BLACK else -1
 			board.en_passant_target = Vector2(pos.x, pos.y - step)
 			board.en_passant_pawn = piece
+
+		if !is_king_in_check(status):
+			board.clear_check_marker()
+
 		status = Globals.COLORS.BLACK if status == Globals.COLORS.WHITE else Globals.COLORS.WHITE
+
+		var king_pos = board.white_king_pos if status == Globals.COLORS.WHITE else board.black_king_pos
+		if is_king_in_check(status):
+			board.draw_check_marker(king_pos)
+
 		evaluate_end_game()
 
 func evaluate_end_game():

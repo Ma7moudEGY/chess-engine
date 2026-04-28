@@ -1,0 +1,18 @@
+[gd_scene format=3 uid="uid://cpcakc0vcjipj"]
+
+[node name="CheckMarker" type="Node2D" unique_id=927120092]
+
+[node name="ColorRect" type="ColorRect" parent="." unique_id=1285608423]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -45.0
+offset_top = -45.0
+offset_right = 45.0
+offset_bottom = 45.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 4
+color = Color(0.9411765, 0.11764706, 0.11764706, 0.6156863)

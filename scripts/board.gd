@@ -3,11 +3,13 @@ extends Node2D
 @export var pieces = []
 @export var piece_scene = preload("res://scenes/Piece.tscn")
 @export var marker_scene = preload("res://scenes/MoveMarker.tscn")
+@export var check_marker_scene = preload("res://scenes/CheckMarker.tscn")
 
 @export var white_king_pos: Vector2
 @export var black_king_pos: Vector2
 
 @onready var marker_layer = Node2D.new()
+@onready var check_layer = Node2D.new()
 
 var en_passant_target = null
 var en_passant_pawn = null
@@ -18,6 +20,7 @@ const CELL_SIZE = 90
 
 func _ready() -> void:
 	add_child(marker_layer)
+	add_child(check_layer)
 	draw_board()
 	init_pieces()
 
@@ -39,10 +42,22 @@ func draw_move_marker(pos):
 	var marker = marker_scene.instantiate()
 	marker.position = Vector2(CELL_SIZE * pos.x + CELL_SIZE / 2.0, CELL_SIZE * pos.y + CELL_SIZE / 2.0)
 	marker.scale = Vector2(1 / 3.0, 1 / 3.0)
+	marker.z_index = 101
 	marker_layer.add_child(marker)
+
+func draw_check_marker(pos):
+	var marker = check_marker_scene.instantiate()
+	marker.position = Vector2(CELL_SIZE * pos.x + CELL_SIZE / 2.0, CELL_SIZE * pos.y + CELL_SIZE / 2.0)
+	marker.z_index = -1
+	check_layer.add_child(marker)
+
 
 func clear_move_markers():
 	for child in marker_layer.get_children():
+		child.queue_free()
+
+func clear_check_marker():
+	for child in check_layer.get_children():
 		child.queue_free()
 
 func init_pieces():
