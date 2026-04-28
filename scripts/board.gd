@@ -15,6 +15,8 @@ var en_passant_target = null
 var en_passant_pawn = null
 
 var piece_map = {}
+var white_pieces = []
+var black_pieces = []
 
 const CELL_SIZE = 90
 
@@ -108,6 +110,7 @@ func move_piece_in_map(piece, from_pos, to_pos):
 
 func delete_piece(piece, free_piece):
 	_unregister_piece(piece)
+	
 	pieces.erase(piece)
 	if free_piece:
 		piece.queue_free()

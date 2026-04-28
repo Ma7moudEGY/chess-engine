@@ -458,7 +458,60 @@ func evaluate_end_game():
 		else:
 			set_draw()
 			return true
-	#else check for other draw conditions
+
+	if is_insufficient_material():
+		set_draw()
+		return true
+
+	return false
+
+func is_insufficient_material() -> bool:
+	var white_knights = 0
+	var black_knights = 0
+	var white_bishops = []
+	var black_bishops = []
+	var white_other = 0
+	var black_other = 0
+
+	for piece in board.pieces:
+		if piece.piece_type == Globals.PIECE_TYPES.KING:
+			continue
+		match piece.piece_type:
+			Globals.PIECE_TYPES.KNIGHT:
+				if piece.color == Globals.COLORS.WHITE:
+					white_knights += 1
+				else:
+					black_knights += 1
+			Globals.PIECE_TYPES.BISHOP:
+				var color_bit = (int(piece.board_position.x) + int(piece.board_position.y)) % 2
+				if piece.color == Globals.COLORS.WHITE:
+					white_bishops.append(color_bit)
+				else:
+					black_bishops.append(color_bit)
+			Globals.PIECE_TYPES.PAWN, Globals.PIECE_TYPES.ROOK, Globals.PIECE_TYPES.QUEEN:
+				if piece.color == Globals.COLORS.WHITE:
+					white_other += 1
+				else:
+					black_other += 1
+
+	if white_other > 0 or black_other > 0:
+		return false
+
+	var white_minor = white_knights + white_bishops.size()
+	var black_minor = black_knights + black_bishops.size()
+
+	if white_minor == 0 and black_minor == 0:
+		return true
+
+	if white_minor == 0 and black_minor == 1:
+		return true
+
+	if black_minor == 0 and white_minor == 1:
+		return true
+
+	if white_knights == 0 and black_knights == 0 and white_bishops.size() == 1 and black_bishops.size() == 1:
+		return white_bishops[0] == black_bishops[0]
+
 	return false
 
 func set_win(who: Globals.PLAYER):
