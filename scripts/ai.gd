@@ -5,7 +5,6 @@ const Search = preload("res://scripts/search.gd")
 var status = Globals.COLORS.BLACK
 
 @export var search_depth = 3
-const INFINITY = 10000
 
 var board
 var search
