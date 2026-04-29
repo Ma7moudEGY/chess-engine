@@ -13,6 +13,7 @@ var fullmove_number := 1
 const DEBUG_LOG := false
 const Move = preload("res://scripts/move.gd")
 const MoveGenerator = preload("res://scripts/move_generator.gd")
+const AI = preload("res://scripts/ai.gd")
 
 var is_dragging: bool
 var selected_piece = null
@@ -25,6 +26,7 @@ var position_counts = {}
 var position_history = []
 
 var move_generator = null
+var ai = null
 
 # Move objects captured for undo.
 var moves = []
@@ -44,12 +46,15 @@ func _ready() -> void:
 	init_game()
 	if start_fen != "":
 		load_fen(start_fen)
+	
+	if player2_type == Globals.PLAYER_2_TYPE.AI:
+		ai = AI.new(board)
 
 	var current_pos = get_current_pos()
 	position_history.append(current_pos)
 	position_counts[current_pos] = 1
 	if status == Globals.COLORS.BLACK and player2_type == Globals.PLAYER_2_TYPE.AI:
-		player2_move()
+		ai_move()
 
 	ui_control.hide()
 	promotion_ui.hide()
@@ -88,7 +93,7 @@ func _input(event: InputEvent) -> void:
 			return
 		if evaluate_end_game():
 			return
-		call_deferred("player2_move")
+		call_deferred("ai_move")
 
 	elif event is InputEventMouseMotion and selected_piece != null and Input.is_action_pressed("left_click"):
 		is_dragging = true
@@ -110,7 +115,7 @@ func _input(event: InputEvent) -> void:
 		if evaluate_end_game():
 			return
 		if player2_type == Globals.PLAYER_2_TYPE.AI and status == Globals.COLORS.BLACK: 
-			call_deferred("player2_move")
+			call_deferred("ai_move")
 
 
 func init_game():
@@ -357,14 +362,16 @@ func try_move_to(to_move) -> bool:
 			print(moves)
 
 		return true
+
 	return false
 
 
-func player2_move():
+func ai_move():
 	if player2_type == Globals.PLAYER_2_TYPE.AI:
 		var valid_moves = move_generator.get_valid_moves()
 
-		var move = valid_moves.pick_random()
+		var move = ai.get_best_move(valid_moves)
+
 		var piece = move[0]
 		var pos = move[1]
 
@@ -475,7 +482,7 @@ func _on_knight_pressed() -> void:
 	if evaluate_end_game():
 		return
 	if player2_type == Globals.PLAYER_2_TYPE.AI and status == Globals.COLORS.BLACK:
-		call_deferred("player2_move")
+		call_deferred("ai_move")
 
 
 func _on_bishop_pressed() -> void:
@@ -486,7 +493,7 @@ func _on_bishop_pressed() -> void:
 	if evaluate_end_game():
 		return
 	if player2_type == Globals.PLAYER_2_TYPE.AI and status == Globals.COLORS.BLACK:
-		call_deferred("player2_move")
+		call_deferred("ai_move")
 
 
 func _on_rook_pressed() -> void:
@@ -497,7 +504,7 @@ func _on_rook_pressed() -> void:
 	if evaluate_end_game():
 		return
 	if player2_type == Globals.PLAYER_2_TYPE.AI and status == Globals.COLORS.BLACK:
-		call_deferred("player2_move")
+		call_deferred("ai_move")
 
 
 func _on_queen_pressed() -> void:
@@ -508,4 +515,4 @@ func _on_queen_pressed() -> void:
 	if evaluate_end_game():
 		return
 	if player2_type == Globals.PLAYER_2_TYPE.AI and status == Globals.COLORS.BLACK:
-		call_deferred("player2_move")
+		call_deferred("ai_move")
