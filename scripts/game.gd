@@ -295,9 +295,14 @@ func apply_move(piece, to_pos):
 
 	if piece.piece_type == Globals.PIECE_TYPES.PAWN:
 		if (piece.color == Globals.COLORS.WHITE and to_pos.y == 0) or (piece.color == Globals.COLORS.BLACK and to_pos.y == 7):
-			pending_promotion_pawn = piece
-			set_buttons_color(piece.color)
-			promotion_ui.show()
+			var is_ai = (piece.color != player_color and player2_type == Globals.PLAYER_2_TYPE.AI)
+			if is_ai:
+				piece.piece_type = Globals.PIECE_TYPES.QUEEN
+				piece.update_sprite()
+			else:
+				pending_promotion_pawn = piece
+				set_buttons_color(piece.color)
+				promotion_ui.show()
 
 	var in_check = move_generator.is_king_in_check(status)
 	var prev_halfmove = halfmove_clock
