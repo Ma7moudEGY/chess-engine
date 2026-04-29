@@ -368,9 +368,7 @@ func try_move_to(to_move) -> bool:
 
 func ai_move():
 	if player2_type == Globals.PLAYER_2_TYPE.AI:
-		var valid_moves = move_generator.get_valid_moves()
-
-		var move = ai.get_best_move(valid_moves)
+		var move = ai.get_best_move()
 
 		var piece = move[0]
 		var to_pos = move[1]

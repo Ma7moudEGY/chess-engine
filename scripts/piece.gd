@@ -12,6 +12,7 @@ const Y_OFFSET = CELL_SIZE / 2.0
 @export var color: Globals.COLORS
 @export var board_position: Vector2
 
+var value
 var board_handle
 
 @export var moved: bool
@@ -19,6 +20,7 @@ var board_handle
 func init_piece(type: Globals.PIECE_TYPES, col: Globals.COLORS, board_pos: Vector2, board):
 	piece_type = type
 	color = col
+	value = Globals.PIECE_VALUES[piece_type]
 	board_position = board_pos
 	board_handle = board
 	moved = false
