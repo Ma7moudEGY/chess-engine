@@ -53,7 +53,7 @@ func get_moveable_positions():
 		Globals.PIECE_TYPES.ROOK: return rook_threat_pos()
 		Globals.PIECE_TYPES.KNIGHT: return knight_threat_pos()
 		Globals.PIECE_TYPES.QUEEN: return queen_threat_pos()
-		Globals.PIECE_TYPES.KING: return king_threat_pos()
+		Globals.PIECE_TYPES.KING: return king_move_pos()
 		_: return []
 
 func get_threatened_positions():
@@ -157,6 +157,21 @@ const KING_CASTLE_OFFSETS = [[2, 0], [-2, 0]]
 func king_threat_pos():
 	var positions = []
 
+	for inc in KING_SPOT_INCREMENTS:
+		var pos = board_handle.spot_search_threat(color, board_position[0], board_position[1],
+			inc[0], inc[1])
+		if pos != null:
+			positions.append(pos)
+	return positions
+
+func king_move_pos():
+	var positions = []
+
+	check_castling(positions)
+	
+	return positions + king_threat_pos()
+
+func check_castling(positions):
 	if not moved and board_position.x == 4:
 		var y = board_position.y
 		var rook_right = board_handle.get_piece(Vector2(7, y))
@@ -168,11 +183,3 @@ func king_threat_pos():
 		if rook_left != null and rook_left.piece_type == Globals.PIECE_TYPES.ROOK and rook_left.color == color and not rook_left.moved:
 			if board_handle.get_piece(Vector2(3, y)) == null and board_handle.get_piece(Vector2(2, y)) == null and board_handle.get_piece(Vector2(1, y)) == null:
 				positions.append(Vector2(2, y))
-
-
-	for inc in KING_SPOT_INCREMENTS:
-		var pos = board_handle.spot_search_threat(color, board_position[0], board_position[1],
-			inc[0], inc[1])
-		if pos != null:
-			positions.append(pos)
-	return positions
