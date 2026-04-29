@@ -31,10 +31,11 @@ func init_piece(type: Globals.PIECE_TYPES, col: Globals.COLORS, board_pos: Vecto
 
 
 func update_position():
-	position = Vector2(X_OFFSET + board_position[0] * CELL_SIZE, Y_OFFSET + board_position[1] * CELL_SIZE) 
+	if OS.get_thread_caller_id() == OS.get_main_thread_id():
+		position = Vector2(X_OFFSET + board_position[0] * CELL_SIZE, Y_OFFSET + board_position[1] * CELL_SIZE) 
 
 func update_sprite():
-	if sprite:
+	if sprite and OS.get_thread_caller_id() == OS.get_main_thread_id():
 		sprite.texture = load(Globals.SPRITE_MAPPING[color][piece_type])
 		sprite.scale = Vector2(float(CELL_SIZE) / SPRITE_SIZE, float(CELL_SIZE) / SPRITE_SIZE)
 

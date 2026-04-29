@@ -26,7 +26,10 @@ var position_counts = {}
 var position_history = []
 
 var move_generator = null
+
 var ai = null
+var ai_thread: Thread = null
+var ai_pending_move = null
 
 # Move objects captured for undo.
 var moves = []
@@ -59,8 +62,22 @@ func _ready() -> void:
 	ui_control.hide()
 	promotion_ui.hide()
 
+func ai_move():
+	if player2_type == Globals.PLAYER_2_TYPE.AI:
+		ai_thread = Thread.new()
+		ai_thread.start(Callable(ai, "get_best_move"))
+
+func _process(delta: float) -> void:
+	if ai_thread != null and not ai_thread.is_alive():
+		var move = ai_thread.wait_to_finish()
+		ai_thread = null
+		if move != null:
+			apply_move(move[0], move[1])
+		evaluate_end_game()
+
+
 func _input(event: InputEvent) -> void:
-	if game_over or pending_promotion_pawn != null:
+	if game_over or pending_promotion_pawn != null or ai_thread != null:
 		return
 
 	if Input.is_action_just_pressed("undo"):
@@ -365,17 +382,6 @@ func try_move_to(to_move) -> bool:
 
 	return false
 
-
-func ai_move():
-	if player2_type == Globals.PLAYER_2_TYPE.AI:
-		var move = ai.get_best_move()
-
-		var piece = move[0]
-		var to_pos = move[1]
-
-		apply_move(piece, to_pos)
-
-		evaluate_end_game()
 
 func evaluate_end_game():
 	var m = move_generator.get_valid_moves()
