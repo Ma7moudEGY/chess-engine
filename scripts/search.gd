@@ -3,12 +3,16 @@ class_name Search
 
 const Zobrist = preload("res://scripts/zobrist.gd")
 const SearchBoard = preload("res://scripts/search_board.gd")
+const Evaluator = preload("res://scripts/evaluator.gd")
 const INFINITY = 10000
+
+const NULL_MOVE_REDUCTION = 2
 
 enum { EXACT, LOWERBOUND, UPPERBOUND }
 
 var godot_board
 var zobrist
+var evaluator
 var search_depth
 var transposition_table = {}
 
@@ -16,10 +20,9 @@ func _init(_board, _depth) -> void:
 	godot_board = _board
 	search_depth = _depth
 	zobrist = Zobrist.new()
+	evaluator = Evaluator.new()
 
 func get_best_move(color):
-	transposition_table.clear()
-
 	var search_board = SearchBoard.from_godot_board(godot_board, color)
 	var castling = search_board.get_castling_rights()
 	var _hash = zobrist.compute_hash(godot_board, color, godot_board.en_passant_target, castling)
@@ -48,7 +51,7 @@ func get_best_move(color):
 		var new_ep = search_board.en_passant_target
 		var new_hash = _update_hash_for_move(_hash, piece_data, from_pos, to_pos, dest, prev_ep, new_ep)
 		var enemy = search_board.get_opponent(color)
-		var score = negmax(search_depth - 1, -beta, -alpha, enemy, new_hash, search_board)
+		var score = -negmax(search_depth - 1, -beta, -alpha, enemy, new_hash, search_board)
 		search_board.undo_simulated_move(state)
 		if best_score <= score:
 			best_score = score
@@ -74,10 +77,21 @@ func negmax(depth, alpha, beta, color, _hash, search_board):
 		elif entry.flag == UPPERBOUND:
 			beta = min(beta, entry.score)
 		if alpha >= beta:
-			return entry.score
+			return alpha
 
 	if depth == 0:
-		return search_board.evaluate(color)
+		return evaluator.evaluate(search_board, color)
+
+	if depth >= NULL_MOVE_REDUCTION + 1 and not search_board.is_king_in_check(color):
+		var null_hash = _hash ^ zobrist.side_key
+		if search_board.en_passant_target != null:
+			null_hash ^= zobrist.ep_keys[int(search_board.en_passant_target.x)]
+
+		var enemy = search_board.get_opponent(color)
+		var score = -negmax(depth - 1 - NULL_MOVE_REDUCTION, -beta, -beta + 1, enemy, null_hash, search_board)
+
+		if score >= beta:
+			return beta
 
 	var valid_moves = search_board.get_valid_moves(color)
 

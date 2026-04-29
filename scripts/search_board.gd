@@ -1,17 +1,13 @@
 extends RefCounted
 class_name SearchBoard
 
-const Evaluator = preload("res://scripts/evaluator.gd")
-
-var evaluator = Evaluator
-
 const PIECE_VALUES = {
-	Globals.PIECE_TYPES.PAWN: 1,
-	Globals.PIECE_TYPES.KNIGHT: 3,
-	Globals.PIECE_TYPES.BISHOP: 3,
-	Globals.PIECE_TYPES.ROOK: 5,
-	Globals.PIECE_TYPES.QUEEN: 9,
-	Globals.PIECE_TYPES.KING: 100,
+	Globals.PIECE_TYPES.PAWN: 100,
+	Globals.PIECE_TYPES.KNIGHT: 320,
+	Globals.PIECE_TYPES.BISHOP: 330,
+	Globals.PIECE_TYPES.ROOK: 500,
+	Globals.PIECE_TYPES.QUEEN: 900,
+	Globals.PIECE_TYPES.KING: 20000,
 }
 
 const BISHOP_BEAM_INCREMENTS = [[1, 1], [1, -1], [-1, 1], [-1, -1]]
@@ -183,12 +179,6 @@ func is_square_attacked(pos, attacking_color):
 				if pos in threat:
 					return true
 	return false
-
-func evaluate(color):
-	if evaluator != null:
-		evaluator = Evaluator.new()
-
-	return evaluator.evaluate(self, color)
 
 func get_castling_rights():
 	var rights = ""
