@@ -6,7 +6,7 @@ const SearchBoard = preload("res://scripts/search_board.gd")
 const Evaluator = preload("res://scripts/evaluator.gd")
 const INFINITY = 10000
 
-const NULL_MOVE_REDUCTION = 2
+const NULL_MOVE_REDUCTION = 3
 
 enum { EXACT, LOWERBOUND, UPPERBOUND }
 
@@ -31,7 +31,7 @@ func get_best_move(color):
 	if valid_moves.is_empty():
 		return null
 
-	valid_moves = sort_moves(valid_moves, search_board)
+	valid_moves = sort_moves(valid_moves, search_board, color)
 
 	var best_score = -INFINITY
 	var best_move = null
@@ -70,19 +70,22 @@ func get_best_move(color):
 func negmax(depth, alpha, beta, color, _hash, search_board):
 	var entry = transposition_table.get(_hash, null)
 	if entry != null and entry.depth >= depth:
+		var stored_score = entry.score
+		if abs(stored_score) > INFINITY - 1000:
+			stored_score = stored_score - sign(stored_score) * (entry.depth - depth)
 		if entry.flag == EXACT:
-			return entry.score
+			return stored_score
 		elif entry.flag == LOWERBOUND:
-			alpha = max(alpha, entry.score)
+			alpha = max(alpha, stored_score)
 		elif entry.flag == UPPERBOUND:
-			beta = min(beta, entry.score)
+			beta = min(beta, stored_score)
 		if alpha >= beta:
 			return alpha
 
 	if depth == 0:
 		return evaluator.evaluate(search_board, color)
 
-	if depth >= NULL_MOVE_REDUCTION + 1 and not search_board.is_king_in_check(color):
+	if depth >= 4 and not search_board.is_king_in_check(color) and abs(alpha) < INFINITY - 1000 and abs(beta) < INFINITY - 1000:
 		var null_hash = _hash ^ zobrist.side_key
 		if search_board.en_passant_target != null:
 			null_hash ^= zobrist.ep_keys[int(search_board.en_passant_target.x)]
@@ -97,11 +100,11 @@ func negmax(depth, alpha, beta, color, _hash, search_board):
 
 	if valid_moves.is_empty():
 		if search_board.is_king_in_check(color):
-			return -INFINITY
+			return -INFINITY + depth
 		else:
 			return 0
 
-	valid_moves = sort_moves(valid_moves, search_board)
+	valid_moves = sort_moves(valid_moves, search_board, color)
 
 	var best_score = -INFINITY
 	var original_alpha = alpha
@@ -132,15 +135,19 @@ func negmax(depth, alpha, beta, color, _hash, search_board):
 	elif best_score >= beta:
 		flag = LOWERBOUND
 
+	var store_score = best_score
+	if abs(best_score) > INFINITY - 1000:
+		store_score = best_score + sign(best_score) * depth
+
 	transposition_table[_hash] = {
-		"score": best_score,
+		"score": store_score,
 		"flag": flag,
 		"depth": depth,
 	}
 
 	return best_score
 
-func sort_moves(moves, search_board):
+func sort_moves(moves, search_board, color):
 	var scored = []
 	for move in moves:
 		var piece_data = move[0]
