@@ -373,9 +373,9 @@ func ai_move():
 		var move = ai.get_best_move(valid_moves)
 
 		var piece = move[0]
-		var pos = move[1]
+		var to_pos = move[1]
 
-		apply_move(piece, pos)
+		apply_move(piece, to_pos)
 
 		evaluate_end_game()
 
@@ -394,9 +394,10 @@ func evaluate_end_game():
 		return true
 
 	var current_pos = get_current_pos()
-	if position_counts[current_pos] >= 3:
-		set_draw()
-		return true
+	if position_counts.has(current_pos):
+		if position_counts.get(current_pos) >= 3:
+			set_draw()
+			return true
 
 	if halfmove_clock >= 100:
 		set_draw()
