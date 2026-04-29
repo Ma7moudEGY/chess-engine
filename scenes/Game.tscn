@@ -5,7 +5,6 @@
 
 [node name="Game" type="Node2D" unique_id=2009748734]
 script = ExtResource("1_qbsmt")
-start_fen = "8/8/8/8/8/8/8/K6k w - - 99 1"
 
 [node name="Board" type="Node2D" parent="." unique_id=160282334]
 script = ExtResource("2_cpr0p")

@@ -11,6 +11,8 @@ var halfmove_clock := 0
 var fullmove_number := 1
 
 const DEBUG_LOG := false
+const Move = preload("res://scripts/move.gd")
+const MoveGenerator = preload("res://scripts/move_generator.gd")
 
 var is_dragging: bool
 var selected_piece = null
@@ -22,7 +24,9 @@ var pending_promotion_pawn = null
 var position_counts = {}
 var position_history = []
 
-# [from, to, moved, captured, prev_type, rook, rook_from, rook_to, rook_prev_moved, prev_ep_target, prev_ep_pawn, was_in_check, prev_halfmove, prev_fullmove]
+var move_generator = null
+
+# Move objects captured for undo.
 var moves = []
 
 @onready var board = $Board
@@ -117,6 +121,8 @@ func init_game():
 	player2_type = Globals.PLAYER_2_TYPE.AI # change to ai later
 	halfmove_clock = 0
 	fullmove_number = 1
+	move_generator = MoveGenerator.new(board, status)
+
 
 func get_fen() -> String:
 	return board.get_fen(status, halfmove_clock, fullmove_number)
@@ -148,6 +154,8 @@ func load_fen(fen: String) -> bool:
 	var current_pos = get_current_pos()
 	position_history.append(current_pos)
 	position_counts[current_pos] = 1
+
+	move_generator.status = status
 	
 	return true
 
@@ -157,35 +165,34 @@ func undo_move():
 		# 	print(moves)
 		var king_pos = board.white_king_pos if status != Globals.COLORS.WHITE else board.black_king_pos
 		var move = moves.pop_back()
-		var src_piece = board.get_piece(move[1])
-		src_piece.move_position(move[0])
-		src_piece.moved = move[2]
-		src_piece.piece_type = move[4]
+		var src_piece = board.get_piece(move.to_pos)
+		src_piece.move_position(move.from_pos)
+		src_piece.moved = move.moved
+		src_piece.piece_type = move.prev_type
 		src_piece.update_sprite()
 
-		var captured = move[3]
+		var captured = move.captured
 		if captured != null:
 			board.restore_piece(captured)
 
-		var rook = move[5]
+		var rook = move.rook
 		if rook != null:
-			rook.move_position(move[6])
-			rook.moved = move[8]
+			rook.move_position(move.rook_from)
+			rook.moved = move.rook_prev_moved
 
-		if move.size() > 9:
-			board.en_passant_target = move[9]
-			board.en_passant_pawn = move[10]
+		board.en_passant_target = move.prev_ep_target
+		board.en_passant_pawn = move.prev_ep_pawn
 
-		if move[11] == true:
+		if move.was_in_check == true:
 			board.draw_check_marker(king_pos)
 		else:
 			board.clear_check_marker()
 
-		if move.size() > 12:
-			halfmove_clock = move[12]
-			fullmove_number = move[13]
+		halfmove_clock = move.prev_halfmove
+		fullmove_number = move.prev_fullmove
 
 		status = Globals.COLORS.BLACK if status == Globals.COLORS.WHITE else Globals.COLORS.WHITE
+		move_generator.status = status
 
 		current_fen = get_fen()
 
@@ -216,98 +223,6 @@ func drop_piece():
 	var to_move = get_pos_under_mouse()
 	return try_move_to(to_move)
 
-func try_move_to(to_move) -> bool:
-	if selected_piece == null:
-		return false
-	if not selected_legal_targets.is_empty():
-		if not selected_legal_targets.has(to_move):
-			return false
-
-	if valid_move(selected_piece.board_position, to_move):
-		var dest_piece = board.get_piece(to_move)
-		if selected_piece.piece_type == Globals.PIECE_TYPES.PAWN and dest_piece == null and board.en_passant_target != null:
-			if to_move == board.en_passant_target and board.en_passant_pawn != null and board.en_passant_pawn.color != selected_piece.color:
-				dest_piece = board.en_passant_pawn
-
-		if dest_piece != null and dest_piece.color != selected_piece.color:
-			board.delete_piece(dest_piece, false)
-
-		var prev_type = selected_piece.piece_type
-		var prev_ep_target = board.en_passant_target
-		var prev_ep_pawn = board.en_passant_pawn
-
-		var rook = null
-		var rook_from = null
-		var rook_to = null
-		var rook_prev_moved = null
-
-		if selected_piece.piece_type == Globals.PIECE_TYPES.KING and abs(to_move.x - selected_piece.board_position.x) == 2:
-			var y = selected_piece.board_position.y
-			if to_move.x > selected_piece.board_position.x:
-				rook_from = Vector2(7, y)
-				rook_to = Vector2(selected_piece.board_position.x + 1, y)
-			else:
-				rook_from = Vector2(0, y)
-				rook_to = Vector2(selected_piece.board_position.x - 1, y)
-
-			rook = board.get_piece(rook_from)
-			if rook != null:
-				rook_prev_moved = rook.moved
-				rook.move_position(rook_to)
-				rook.moved = true
-
-		board.en_passant_target = null
-		board.en_passant_pawn = null
-
-		if selected_piece.piece_type == Globals.PIECE_TYPES.PAWN:
-			if (selected_piece.color == Globals.COLORS.WHITE and to_move.y == 0) or (selected_piece.color == Globals.COLORS.BLACK and to_move.y == 7):
-				pending_promotion_pawn = selected_piece
-				set_buttons_color(selected_piece.color)
-				promotion_ui.show()
-
-		var in_check = is_king_in_check(status)
-		var prev_halfmove = halfmove_clock
-		var prev_fullmove = fullmove_number
-		var is_pawn_move = selected_piece.piece_type == Globals.PIECE_TYPES.PAWN
-		var is_capture = dest_piece != null and dest_piece.color != selected_piece.color
-		halfmove_clock = 0 if is_pawn_move or is_capture else halfmove_clock + 1
-		if status == Globals.COLORS.BLACK:
-			fullmove_number += 1
-
-		moves.append([selected_piece.board_position, to_move, selected_piece.moved, dest_piece, prev_type, rook, rook_from, rook_to, rook_prev_moved, prev_ep_target, prev_ep_pawn, in_check, prev_halfmove, prev_fullmove])
-		selected_piece.move_position(to_move)
-
-		if selected_piece.piece_type == Globals.PIECE_TYPES.PAWN and abs(to_move.y - moves[-1][0].y) == 2:
-			var step = 1 if selected_piece.color == Globals.COLORS.BLACK else -1
-			board.en_passant_target = Vector2(to_move.x, to_move.y - step)
-			board.en_passant_pawn = selected_piece
-
-		if !is_king_in_check(status):
-			board.clear_check_marker()
-
-		status = Globals.COLORS.BLACK if status == Globals.COLORS.WHITE else Globals.COLORS.WHITE
-
-		var king_pos = board.white_king_pos if status == Globals.COLORS.WHITE else board.black_king_pos
-		if is_king_in_check(status):
-			board.draw_check_marker(king_pos)
-
-		current_fen = get_fen()
-		# print(current_fen)
-
-		# record pos
-		var current_pos = get_current_pos()
-		position_history.append(current_pos)
-		if position_counts.has(current_pos):
-			position_counts[current_pos] += 1
-		else:
-			position_counts[current_pos] = 1
-
-		if DEBUG_LOG:
-			print(moves)
-
-		return true
-	return false
-
 func set_buttons_color(col: Globals.COLORS):
 	k.set_texture_normal(load(Globals.SPRITE_MAPPING[col][Globals.PIECE_TYPES.KNIGHT]))
 	b.set_texture_normal(load(Globals.SPRITE_MAPPING[col][Globals.PIECE_TYPES.BISHOP]))
@@ -337,38 +252,37 @@ func build_legal_targets(piece) -> Dictionary:
 	var targets = {}
 	if piece == null:
 		return targets
-	var candi_pos = unique(piece.get_moveable_positions())
-	for pos in candi_pos:
-		if valid_move(piece.board_position, pos):
-			targets[pos] = true
+	for move in move_generator.get_valid_moves():
+		if move[0] == piece:
+			targets[move[1]] = true
 	return targets
 
-func simulate_move(from_pos, to_pos):
-	var piece = board.get_piece(from_pos)
+func apply_move(piece, to_pos):
 	var dest_piece = board.get_piece(to_pos)
-	var moved = piece.moved
-	var prev_pos = piece.board_position
+	if piece.piece_type == Globals.PIECE_TYPES.PAWN and dest_piece == null and board.en_passant_target != null:
+		if to_pos == board.en_passant_target and board.en_passant_pawn != null and board.en_passant_pawn.color != piece.color:
+			dest_piece = board.en_passant_pawn
+
+	if dest_piece != null and dest_piece.color != piece.color:
+		board.delete_piece(dest_piece, false)
+
 	var prev_type = piece.piece_type
+	var prev_ep_target = board.en_passant_target
+	var prev_ep_pawn = board.en_passant_pawn
+
 	var rook = null
 	var rook_from = null
 	var rook_to = null
 	var rook_prev_moved = null
 
-	if piece.piece_type == Globals.PIECE_TYPES.PAWN and dest_piece == null and board.en_passant_target != null:
-		if to_pos == board.en_passant_target and board.en_passant_pawn != null and board.en_passant_pawn.color != piece.color:
-			dest_piece = board.en_passant_pawn
-
-	if dest_piece != null:
-		board.delete_piece(dest_piece, false)
-
-	if piece.piece_type == Globals.PIECE_TYPES.KING and abs(to_pos.x - from_pos.x) == 2:
-		var y = from_pos.y
-		if to_pos.x > from_pos.x:
+	if piece.piece_type == Globals.PIECE_TYPES.KING and abs(to_pos.x - piece.board_position.x) == 2:
+		var y = piece.board_position.y
+		if to_pos.x > piece.board_position.x:
 			rook_from = Vector2(7, y)
-			rook_to = Vector2(from_pos.x + 1, y)
+			rook_to = Vector2(piece.board_position.x + 1, y)
 		else:
 			rook_from = Vector2(0, y)
-			rook_to = Vector2(from_pos.x - 1, y)
+			rook_to = Vector2(piece.board_position.x - 1, y)
 
 		rook = board.get_piece(rook_from)
 		if rook != null:
@@ -376,184 +290,87 @@ func simulate_move(from_pos, to_pos):
 			rook.move_position(rook_to)
 			rook.moved = true
 
+	board.en_passant_target = null
+	board.en_passant_pawn = null
+
+	if piece.piece_type == Globals.PIECE_TYPES.PAWN:
+		if (piece.color == Globals.COLORS.WHITE and to_pos.y == 0) or (piece.color == Globals.COLORS.BLACK and to_pos.y == 7):
+			pending_promotion_pawn = piece
+			set_buttons_color(piece.color)
+			promotion_ui.show()
+
+	var in_check = move_generator.is_king_in_check(status)
+	var prev_halfmove = halfmove_clock
+	var prev_fullmove = fullmove_number
+	var is_pawn_move = piece.piece_type == Globals.PIECE_TYPES.PAWN
+	var is_capture = dest_piece != null and dest_piece.color != piece.color
+	halfmove_clock = 0 if is_pawn_move or is_capture else halfmove_clock + 1
+	if status == Globals.COLORS.BLACK:
+		fullmove_number += 1
+
+	moves.append(Move.new(piece.board_position, to_pos, piece.moved, dest_piece, prev_type, rook, rook_from, rook_to, rook_prev_moved, prev_ep_target, prev_ep_pawn, in_check, prev_halfmove, prev_fullmove))
 	piece.move_position(to_pos)
 
-	return {
-		"piece": piece,
-		"dest_piece": dest_piece,
-		"moved": moved,
-		"prev_pos": prev_pos,
-		"prev_type": prev_type,
-		"rook": rook,
-		"rook_from": rook_from,
-		"rook_to": rook_to,
-		"rook_prev_moved": rook_prev_moved
-	}
+	if piece.piece_type == Globals.PIECE_TYPES.PAWN and abs(to_pos.y - moves[-1].from_pos.y) == 2:
+		var step = 1 if piece.color == Globals.COLORS.BLACK else -1
+		board.en_passant_target = Vector2(to_pos.x, to_pos.y - step)
+		board.en_passant_pawn = piece	
 
-func undo_simulated_move(state: Dictionary):
-	var piece = state["piece"]
-	var prev_pos = state["prev_pos"]
-	var prev_moved = state["moved"]
-	var prev_type = state["prev_type"]
+	if !move_generator.is_king_in_check(status):
+		board.clear_check_marker()
 
-	piece.move_position(prev_pos)
-	piece.moved = prev_moved
-	piece.piece_type = prev_type
-	piece.update_sprite()
+	status = Globals.COLORS.BLACK if status == Globals.COLORS.WHITE else Globals.COLORS.WHITE
 
-	var dest_piece = state["dest_piece"]
-	if dest_piece != null:
-		board.restore_piece(dest_piece)
+	move_generator.status = status
 
-	var rook = state["rook"]
-	if rook != null:
-		rook.move_position(state["rook_from"])
-		rook.moved = state["rook_prev_moved"]
+	var king_pos = board.white_king_pos if status == Globals.COLORS.WHITE else board.black_king_pos
+	if move_generator.is_king_in_check(status):
+		board.draw_check_marker(king_pos)
 
-func is_king_in_check(to_check: Globals.COLORS):
-	var king_pos = board.white_king_pos if to_check == Globals.COLORS.WHITE else board.black_king_pos
+	current_fen = get_fen()
+	# print(current_fen)
 
-	for piece in board.pieces:
-		if piece.color != to_check and king_pos in piece.get_threatened_positions():
-			return true
+	# record pos
+	var current_pos = get_current_pos()
+	position_history.append(current_pos)
+	if position_counts.has(current_pos):
+		position_counts[current_pos] += 1
+	else:
+		position_counts[current_pos] = 1
 
+func try_move_to(to_move) -> bool:
+	if selected_piece == null:
+		return false
+	if not selected_legal_targets.is_empty():
+		if not selected_legal_targets.has(to_move):
+			return false
+
+	if move_generator.valid_move(selected_piece.board_position, to_move):
+		apply_move(selected_piece, to_move)
+
+		if DEBUG_LOG:
+			print(moves)
+
+		return true
 	return false
 
-func is_square_attacked(pos, col):
-	for piece in board.pieces:
-		if piece.color == col and pos in piece.get_threatened_positions():
-			return true
-	return false
-
-func valid_move(from_pos, to_pos):
-	var src_piece = board.get_piece(from_pos)
-	if src_piece == null:
-		return false
-
-	if (to_pos not in src_piece.get_moveable_positions() and to_pos not in src_piece.get_threatened_positions()):
-		return false
-
-	if src_piece.piece_type == Globals.PIECE_TYPES.KING and abs(to_pos.x - from_pos.x) == 2:
-		var enemy = Globals.COLORS.BLACK if status == Globals.COLORS.WHITE else Globals.COLORS.WHITE
-		if is_square_attacked(from_pos, enemy):
-			return false
-
-		var step = 1 if to_pos.x > from_pos.x else -1
-		var pass_sqaure = from_pos + Vector2(step, 0)
-		if is_square_attacked(pass_sqaure, enemy):
-			return false
-		if is_square_attacked(to_pos, enemy):
-			return false
-
-	var state = simulate_move(from_pos, to_pos)
-	var illegal = is_king_in_check(status)
-	undo_simulated_move(state)
-
-	return not illegal
-
-func get_valid_moves():
-	var valid_moves = []
-	for piece in board.pieces:
-		if piece.color == status:
-			var candi_pos = piece.get_moveable_positions()
-			candi_pos = unique(candi_pos)
-			for pos in candi_pos:
-				if valid_move(piece.board_position, pos):
-					valid_moves.append([piece, pos])
-
-	return valid_moves
-
-func unique(arr: Array) -> Array:
-	var dict = {}
-	for a in arr:
-		dict[a] = 1
-	return dict.keys()
 
 func player2_move():
 	if player2_type == Globals.PLAYER_2_TYPE.AI:
-		var valid_moves = get_valid_moves()
+		var valid_moves = move_generator.get_valid_moves()
 
 		var move = valid_moves.pick_random()
 		var piece = move[0]
 		var pos = move[1]
-		var dest_piece = board.get_piece(pos)
-		if piece.piece_type == Globals.PIECE_TYPES.PAWN and dest_piece == null and board.en_passant_target != null:
-			if pos == board.en_passant_target and board.en_passant_pawn != null and board.en_passant_pawn.color != piece.color:
-				dest_piece = board.en_passant_pawn
-		
-		if dest_piece != null and dest_piece.color != piece.color:
-			board.delete_piece(dest_piece, false)
-		var prev_type = piece.piece_type
-		var prev_ep_target = board.en_passant_target
-		var prev_ep_pawn = board.en_passant_pawn
-		var rook = null
-		var rook_from = null
-		var rook_to = null
-		var rook_prev_moved = null
 
-		if piece.piece_type == Globals.PIECE_TYPES.KING and abs(pos.x - piece.board_position.x) == 2:
-			var y = piece.board_position.y
-			if pos.x > piece.board_position.x:
-				rook_from = Vector2(7, y)
-				rook_to = Vector2(piece.board_position.x + 1, y)
-			else:
-				rook_from = Vector2(0, y)
-				rook_to = Vector2(piece.board_position.x - 1, y)
-
-			rook = board.get_piece(rook_from)
-			if rook != null:
-				rook_prev_moved = rook.moved
-				rook.move_position(rook_to)
-				rook.moved = true
-
-		board.en_passant_target = null
-		board.en_passant_pawn = null
-
-		var in_check = is_king_in_check(status)
-		var prev_halfmove = halfmove_clock
-		var prev_fullmove = fullmove_number
-		var is_pawn_move = piece.piece_type == Globals.PIECE_TYPES.PAWN
-		var is_capture = dest_piece != null and dest_piece.color != piece.color
-		halfmove_clock = 0 if is_pawn_move or is_capture else halfmove_clock + 1
-		if status == Globals.COLORS.BLACK:
-			fullmove_number += 1
-
-		moves.append([piece.board_position, move[1], piece.moved, dest_piece, prev_type, rook, rook_from, rook_to, rook_prev_moved, prev_ep_target, prev_ep_pawn, in_check, prev_halfmove, prev_fullmove])
-		piece.move_position(pos)
-		if piece.piece_type == Globals.PIECE_TYPES.PAWN:
-			if (piece.color == Globals.COLORS.WHITE and pos.y == 0) or (piece.color == Globals.COLORS.BLACK and pos.y == 7):
-				piece.piece_type = Globals.PIECE_TYPES.QUEEN
-				piece.update_sprite()
-		if piece.piece_type == Globals.PIECE_TYPES.PAWN and abs(pos.y - moves[-1][0].y) == 2:
-			var step = 1 if piece.color == Globals.COLORS.BLACK else -1
-			board.en_passant_target = Vector2(pos.x, pos.y - step)
-			board.en_passant_pawn = piece
-
-		if !is_king_in_check(status):
-			board.clear_check_marker()
-
-		status = Globals.COLORS.BLACK if status == Globals.COLORS.WHITE else Globals.COLORS.WHITE
-
-		var king_pos = board.white_king_pos if status == Globals.COLORS.WHITE else board.black_king_pos
-		if is_king_in_check(status):
-			board.draw_check_marker(king_pos)
-
-		current_fen = get_fen()
-		# print(current_fen)
-
-		var current_pos = get_current_pos()
-		position_history.append(current_pos)
-		if position_counts.has(current_pos):
-			position_counts[current_pos] += 1
-		else:
-			position_counts[current_pos] = 1
+		apply_move(piece, pos)
 
 		evaluate_end_game()
 
 func evaluate_end_game():
-	var m = get_valid_moves()
+	var m = move_generator.get_valid_moves()
 	if m.is_empty():
-		if is_king_in_check(Globals.COLORS.WHITE if status == Globals.COLORS.WHITE else Globals.COLORS.BLACK):
+		if move_generator.is_king_in_check(Globals.COLORS.WHITE if status == Globals.COLORS.WHITE else Globals.COLORS.BLACK):
 			set_win(Globals.PLAYER.TWO if status == player_color else Globals.PLAYER.ONE)
 			return true
 		else:
