@@ -19,6 +19,9 @@ var selected_legal_targets = {}
 
 var pending_promotion_pawn = null
 
+var position_counts = {}
+var position_history = []
+
 # [from, to, moved, captured, prev_type, rook, rook_from, rook_to, rook_prev_moved, prev_ep_target, prev_ep_pawn, was_in_check, prev_halfmove, prev_fullmove]
 var moves = []
 
@@ -32,11 +35,17 @@ var moves = []
 @onready var q = $Promotion/Queen
 
 func _ready() -> void:
+	position_counts = {}
+	position_history = []
 	init_game()
 	if start_fen != "":
 		load_fen(start_fen)
-		if status == Globals.COLORS.BLACK and player2_type == Globals.PLAYER_2_TYPE.AI:
-			player2_move()
+
+	var current_pos = get_current_pos()
+	position_history.append(current_pos)
+	position_counts[current_pos] = 1
+	if status == Globals.COLORS.BLACK and player2_type == Globals.PLAYER_2_TYPE.AI:
+		player2_move()
 
 	ui_control.hide()
 	promotion_ui.hide()
@@ -112,10 +121,16 @@ func init_game():
 func get_fen() -> String:
 	return board.get_fen(status, halfmove_clock, fullmove_number)
 
+func get_current_pos():
+	var arr = get_fen().strip_edges().split(" ")
+	return arr[0] + " " + arr[1] + " " + arr[2] + " " + arr[3]
+
 func load_fen(fen: String) -> bool:
 	clear_selection()
 	board.clear_move_markers()
 	board.clear_check_marker()
+	position_counts = {}
+	position_history = []
 	pending_promotion_pawn = null
 	moves.clear()
 	board.en_passant_target = null
@@ -129,6 +144,11 @@ func load_fen(fen: String) -> bool:
 	halfmove_clock = result["halfmove"]
 	fullmove_number = result["fullmove"]
 	game_over = false
+
+	var current_pos = get_current_pos()
+	position_history.append(current_pos)
+	position_counts[current_pos] = 1
+	
 	return true
 
 func undo_move():
@@ -168,6 +188,12 @@ func undo_move():
 		status = Globals.COLORS.BLACK if status == Globals.COLORS.WHITE else Globals.COLORS.WHITE
 
 		current_fen = get_fen()
+
+		var last_pos = position_history.pop_back()
+		position_counts[last_pos] -= 1
+
+		if position_counts[last_pos] == 0:
+			position_counts.erase(last_pos)
 
 # func redo_move():
 # 	if current_move < len(moves):
@@ -266,7 +292,15 @@ func try_move_to(to_move) -> bool:
 			board.draw_check_marker(king_pos)
 
 		current_fen = get_fen()
-		print(current_fen)
+		# print(current_fen)
+
+		# record pos
+		var current_pos = get_current_pos()
+		position_history.append(current_pos)
+		if position_counts.has(current_pos):
+			position_counts[current_pos] += 1
+		else:
+			position_counts[current_pos] = 1
 
 		if DEBUG_LOG:
 			print(moves)
@@ -505,8 +539,14 @@ func player2_move():
 			board.draw_check_marker(king_pos)
 
 		current_fen = get_fen()
-		print(current_fen)
+		# print(current_fen)
 
+		var current_pos = get_current_pos()
+		position_history.append(current_pos)
+		if position_counts.has(current_pos):
+			position_counts[current_pos] += 1
+		else:
+			position_counts[current_pos] = 1
 
 		evaluate_end_game()
 
@@ -521,6 +561,15 @@ func evaluate_end_game():
 			return true
 
 	if is_insufficient_material():
+		set_draw()
+		return true
+
+	var current_pos = get_current_pos()
+	if position_counts[current_pos] >= 3:
+		set_draw()
+		return true
+
+	if halfmove_clock >= 100:
 		set_draw()
 		return true
 
