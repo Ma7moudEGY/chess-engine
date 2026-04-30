@@ -109,26 +109,33 @@ func move_piece_in_map(piece, from_pos, to_pos):
 	piece_map[_key(to_pos)] = piece
 
 func delete_piece(piece, free_piece):
-	if OS.get_thread_caller_id() == OS.get_main_thread_id():
-		_unregister_piece(piece)
-		
-		pieces.erase(piece)
-		if free_piece:
-			piece.queue_free()
-		else:
+	_unregister_piece(piece)
+	pieces.erase(piece)
+	if free_piece:
+		call_deferred("_queue_free", piece)
+	else:
+		if OS.get_thread_caller_id() == OS.get_main_thread_id():
 			piece.visible = false
+		else:
+			call_deferred("_set_visible", piece, false)
+
+func _queue_free(piece):
+	piece.queue_free()
+
+func _set_visible(piece, vis):
+	piece.visible = vis
 
 func restore_piece(piece):
+	if piece == null:
+		return
+	if piece in pieces:
+		return
+	pieces.append(piece)
+	_register_piece(piece)
 	if OS.get_thread_caller_id() == OS.get_main_thread_id():
-		if piece == null:
-			return
-
-		if piece in pieces:
-			return
-
-		pieces.append(piece)
-		_register_piece(piece)
 		piece.visible = true
+	else:
+		call_deferred("_set_visible", piece, true)
 
 func clear_pieces():
 	for piece in pieces:

@@ -5,16 +5,21 @@ const Search = preload("res://scripts/search.gd")
 const BookMoves = preload("res://scripts/book_moves.gd")
 var status = Globals.COLORS.BLACK
 
-@export var search_depth = 5
+@export var search_depth = 4
 
 var board
 var move_generator
 var search
 
-func _init(_board, _move_generator) -> void:
+func _init(_board, _move_generator, cache_path = "") -> void:
 	board = _board
 	move_generator = _move_generator
 	search = Search.new(board, search_depth)
+	if cache_path != "":
+		search.load_cache(cache_path)
+
+func save_cache(path):
+	search.save_cache(path)
 
 func get_best_move():
 	var pos_key = _build_pos_key()

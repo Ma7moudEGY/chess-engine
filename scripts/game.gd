@@ -3,12 +3,16 @@ extends Node2D
 @export var start_fen: String
 @export var current_fen: String
 
+const CACHE_PATH = "res://tt_cache.json"
+const CACHE_SAVE_INTERVAL = 10
+
 var game_over
 var player_color
 var status
 var player2_type
 var halfmove_clock := 0
 var fullmove_number := 1
+var moves_since_cache_save := 0
 
 const DEBUG_LOG := false
 const Move = preload("res://scripts/move.gd")
@@ -51,7 +55,7 @@ func _ready() -> void:
 		load_fen(start_fen)
 	
 	if player2_type == Globals.PLAYER_2_TYPE.AI:
-		ai = AI.new(board, move_generator)
+		ai = AI.new(board, move_generator, CACHE_PATH)
 
 	var current_pos = get_current_pos()
 	position_history.append(current_pos)
@@ -364,6 +368,11 @@ func apply_move(piece, to_pos):
 		position_counts[current_pos] += 1
 	else:
 		position_counts[current_pos] = 1
+
+	moves_since_cache_save += 1
+	if moves_since_cache_save >= CACHE_SAVE_INTERVAL and ai != null:
+		ai.save_cache(CACHE_PATH)
+		moves_since_cache_save = 0
 
 func try_move_to(to_move) -> bool:
 	if selected_piece == null:

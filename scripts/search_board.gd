@@ -96,7 +96,13 @@ func get_valid_moves(color):
 
 				if is_king:
 					if not attacked_squares.has(to):
-						passes = true
+						if abs(int(to.x) - int(from.x)) == 2:
+							var step_x = 1 if int(to.x) > int(from.x) else -1
+							var pass_sq = Vector2(int(from.x) + step_x, int(from.y))
+							if not attacked_squares.has(pass_sq) and not is_king_in_check(color):
+								passes = true
+						else:
+							passes = true
 				elif pin_dir != null:
 					if _is_on_ray(from, to, pin_dir[0], pin_dir[1]):
 						passes = true

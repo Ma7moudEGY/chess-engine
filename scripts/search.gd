@@ -94,7 +94,7 @@ func negmax(depth, alpha, beta, color, _hash, search_board):
 			return alpha
 
 	if depth == 0:
-		return evaluator.evaluate(search_board, color)
+		return _quiesce(alpha, beta, color, _hash, search_board)
 
 	if depth >= 4 and not search_board.is_king_in_check(color) and abs(alpha) < INFINITY - 1000 and abs(beta) < INFINITY - 1000:
 		var null_hash = _hash ^ zobrist.side_key
@@ -164,6 +164,46 @@ func negmax(depth, alpha, beta, color, _hash, search_board):
 
 	return best_score
 
+func _quiesce(alpha, beta, color, _hash, search_board):
+	var stand_pat = evaluator.evaluate(search_board, color)
+	if stand_pat >= beta:
+		return beta
+	if alpha < stand_pat:
+		alpha = stand_pat
+
+	var capture_moves = []
+	for move in search_board.get_valid_moves(color):
+		var dest = search_board.get_piece(move[2])
+		if dest != null:
+			capture_moves.append(move)
+
+	if capture_moves.is_empty():
+		return stand_pat
+
+	capture_moves = sort_moves(capture_moves, search_board, color)
+
+	for move in capture_moves:
+		var piece_data = move[0]
+		var from_pos = move[1]
+		var to_pos = move[2]
+		var dest = search_board.get_piece(to_pos)
+		var prev_ep = search_board.en_passant_target
+
+		var state = search_board.simulate_move(from_pos, to_pos)
+		var new_ep = search_board.en_passant_target
+		var new_hash = _update_hash_for_move(_hash, piece_data, from_pos, to_pos, dest, prev_ep, new_ep)
+
+		var enemy = search_board.get_opponent(color)
+		var score = -_quiesce(-beta, -alpha, enemy, new_hash, search_board)
+		search_board.undo_simulated_move(state)
+
+		if score >= beta:
+			return beta
+		if score > alpha:
+			alpha = score
+
+	return alpha
+
 func sort_moves(moves, search_board, color):
 	var scored = []
 	for move in moves:
@@ -224,3 +264,60 @@ func _find_godot_piece(pos, piece_data):
 		if piece.board_position == pos and piece.piece_type == piece_data.type and piece.color == piece_data.color:
 			return piece
 	return null
+
+func load_cache(path):
+	var file = FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		return
+
+	var json_text = file.get_as_text()
+	file.close()
+
+	var json = JSON.new()
+	var result = json.parse(json_text)
+	if result != OK:
+		return
+
+	var data = json.get_data()
+	for key in data:
+		var entry = data[key]
+		var hash_key = int(key)
+		var best = entry.get("best_move", null)
+		if best != null and best is Array and best.size() == 2:
+			best = [Vector2(best[0][0], best[0][1]), Vector2(best[1][0], best[1][1])]
+		transposition_table[hash_key] = {
+			"score": entry.get("score", 0),
+			"flag": entry.get("flag", 0),
+			"depth": entry.get("depth", 0),
+			"best_move": best
+		}
+
+func save_cache(path):
+	if transposition_table.is_empty():
+		return
+
+	var data = {}
+	for key in transposition_table:
+		var entry = transposition_table[key]
+		var best = entry.get("best_move", null)
+		if best != null:
+			best = [[int(best[0].x), int(best[0].y)], [int(best[1].x), int(best[1].y)]]
+		data[str(key)] = {
+			"score": entry.get("score", 0),
+			"flag": entry.get("flag", 0),
+			"depth": entry.get("depth", 0),
+			"best_move": best
+		}
+
+	var file = FileAccess.open(path, FileAccess.WRITE)
+	if file == null:
+		return
+
+	file.store_string(JSON.stringify(data))
+	file.close()
+
+func get_cache_size() -> int:
+	return transposition_table.size()
+
+func clear_cache():
+	transposition_table.clear()
