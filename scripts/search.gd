@@ -31,41 +31,52 @@ func get_best_move(color):
 	if valid_moves.is_empty():
 		return null
 
-	valid_moves = sort_moves(valid_moves, search_board, color)
+	var overall_best_move = null
+	var overall_best_score = -INFINITY
 
-	var best_score = -INFINITY
-	var best_move = null
-	var alpha = -INFINITY
-	var beta = INFINITY
+	for d in range(1, search_depth + 1):
+		var depth_best_move = null
+		var depth_best_score = -INFINITY
+		var alpha = -INFINITY
+		var beta = INFINITY
 
-	var best_godot_move = null
+		var tt_entry = transposition_table.get(_hash, null)
+		var tt_best = tt_entry.get("best_move", null) if tt_entry != null else null
 
-	for move in valid_moves:
-		var piece_data = move[0]
-		var from_pos = move[1]
-		var to_pos = move[2]
-		var dest = search_board.get_piece(to_pos)
-		var prev_ep = search_board.en_passant_target
+		var ordered_moves = _order_with_tt(valid_moves, tt_best, search_board, color)
 
-		var state = search_board.simulate_move(from_pos, to_pos)
-		var new_ep = search_board.en_passant_target
-		var new_hash = _update_hash_for_move(_hash, piece_data, from_pos, to_pos, dest, prev_ep, new_ep)
-		var enemy = search_board.get_opponent(color)
-		var score = -negmax(search_depth - 1, -beta, -alpha, enemy, new_hash, search_board)
-		search_board.undo_simulated_move(state)
-		if best_score <= score:
-			best_score = score
-			best_move = move
+		for move in ordered_moves:
+			var piece_data = move[0]
+			var from_pos = move[1]
+			var to_pos = move[2]
+			var dest = search_board.get_piece(to_pos)
+			var prev_ep = search_board.en_passant_target
 
-			var gp = _find_godot_piece(from_pos, piece_data)
-			if gp != null:
-				best_godot_move = [gp, to_pos]
+			var state = search_board.simulate_move(from_pos, to_pos)
+			var new_ep = search_board.en_passant_target
+			var new_hash = _update_hash_for_move(_hash, piece_data, from_pos, to_pos, dest, prev_ep, new_ep)
+			var enemy = search_board.get_opponent(color)
+			var score = -negmax(d - 1, -beta, -alpha, enemy, new_hash, search_board)
+			search_board.undo_simulated_move(state)
 
-		alpha = max(alpha, score)
+			if score > depth_best_score:
+				depth_best_score = score
+				depth_best_move = move
 
-	if best_godot_move == null:
+			alpha = max(alpha, score)
+
+		if depth_best_score > overall_best_score:
+			overall_best_score = depth_best_score
+			overall_best_move = depth_best_move
+
+		if abs(overall_best_score) >= INFINITY - 1000:
+			break
+
+	if overall_best_move == null:
 		return null
-	return best_godot_move
+
+	var gp = _find_godot_piece(overall_best_move[1], overall_best_move[0])
+	return [gp, overall_best_move[2]] if gp != null else null
 
 func negmax(depth, alpha, beta, color, _hash, search_board):
 	var entry = transposition_table.get(_hash, null)
@@ -104,7 +115,7 @@ func negmax(depth, alpha, beta, color, _hash, search_board):
 		else:
 			return 0
 
-	valid_moves = sort_moves(valid_moves, search_board, color)
+	valid_moves = _order_with_tt(valid_moves, entry.get("best_move", null) if entry != null else null, search_board, color)
 
 	var best_score = -INFINITY
 	var best_move_pos = null
@@ -125,7 +136,9 @@ func negmax(depth, alpha, beta, color, _hash, search_board):
 		var score = -negmax(depth - 1, -beta, -alpha, enemy, new_hash, search_board)
 		search_board.undo_simulated_move(state)
 
-		best_score = max(best_score, score)
+		if score > best_score:
+			best_score = score
+			best_move_pos = [from_pos, to_pos]
 		alpha = max(alpha, score)
 		if alpha >= beta:
 			break
@@ -140,12 +153,14 @@ func negmax(depth, alpha, beta, color, _hash, search_board):
 	if abs(best_score) > INFINITY - 1000:
 		store_score = best_score + sign(best_score) * depth
 
-	transposition_table[_hash] = {
-		"score": store_score,
-		"flag": flag,
-		"depth": depth,
-		"best_move": best_move_pos
-	}
+	var existing = transposition_table.get(_hash, null)
+	if existing == null or depth >= existing.depth:
+		transposition_table[_hash] = {
+			"score": store_score,
+			"flag": flag,
+			"depth": depth,
+			"best_move": best_move_pos
+		}
 
 	return best_score
 
@@ -158,6 +173,29 @@ func sort_moves(moves, search_board, color):
 		var score = 0
 		if dest != null:
 			score = SearchBoard.PIECE_VALUES.get(dest.type, 0) * 100 - SearchBoard.PIECE_VALUES.get(piece_data.type, 0)
+		scored.append([move, score])
+
+	scored.sort_custom(func(a, b): return a[1] > b[1])
+	var result = []
+	for s in scored:
+		result.append(s[0])
+	return result
+
+func _order_with_tt(moves, tt_best, search_board, color):
+	var scored = []
+	for move in moves:
+		var piece_data = move[0]
+		var to_pos = move[2]
+		var from_pos = move[1]
+		var dest = search_board.get_piece(to_pos)
+		var score = 0
+
+		if tt_best != null and from_pos == tt_best[0] and to_pos == tt_best[1]:
+			score = 1000000
+
+		if dest != null:
+			score += SearchBoard.PIECE_VALUES.get(dest.type, 0) * 100 - SearchBoard.PIECE_VALUES.get(piece_data.type, 0)
+
 		scored.append([move, score])
 
 	scored.sort_custom(func(a, b): return a[1] > b[1])
