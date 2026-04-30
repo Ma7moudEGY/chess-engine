@@ -51,7 +51,7 @@ func _ready() -> void:
 		load_fen(start_fen)
 	
 	if player2_type == Globals.PLAYER_2_TYPE.AI:
-		ai = AI.new(board)
+		ai = AI.new(board, move_generator)
 
 	var current_pos = get_current_pos()
 	position_history.append(current_pos)
