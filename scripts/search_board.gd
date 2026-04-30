@@ -49,19 +49,71 @@ func get_piece(pos):
 	var idx = int(pos.x) + int(pos.y) * 8
 	return grid[idx]
 
+func _is_checking_discovered(piece, from_pos, to_pos, color):
+	var king_pos = white_king_pos if color == Globals.COLORS.WHITE else black_king_pos
+	var enemy = get_opponent(color)
+
+	var all_dirs = BISHOP_BEAM_INCREMENTS + ROOK_BEAM_INCREMENTS
+	for dir in all_dirs:
+		var dx = dir[0]
+		var dy = dir[1]
+		
+		if _is_on_ray(king_pos, from_pos, dx, dy):
+			var cx = int(from_pos.x) + dx
+			var cy = int(from_pos.y) + dy
+			while cx >= 0 and cx < 8 and cy >= 0 and cy < 8:
+				var p = grid[cx + cy * 8]
+				if p != null:
+					if p.color == enemy and _is_slider_threatening(p, dx, dy):
+						if not _is_on_ray(king_pos, to_pos, dx, dy):
+							return true
+					break
+				cx += dx
+				cy += dy
+	return false
+
 func get_valid_moves(color):
 	var moves = []
+	var enemy = get_opponent(color)
+	var king_pos = white_king_pos if color == Globals.COLORS.WHITE else black_king_pos
+
+	var attacked_squares = _get_attacked_squares(enemy)
+	var pinned_pieces = _compute_pins(color, king_pos)
+
 	for y in range(8):
 		for x in range(8):
 			var p = grid[x + y * 8]
-			if p != null and p.color == color:
-				var from = Vector2(x, y)
-				var pseudo = _get_pseudo_legal_moves(p, from)
-				for to in pseudo:
+			if p == null or p.color != color:
+				continue
+
+			var from = Vector2(x, y)
+			var is_king = p.type == Globals.PIECE_TYPES.KING
+			var pin_dir = pinned_pieces.get(from, null)
+			var pseudo = _get_pseudo_legal_moves(p, from)
+
+			for to in pseudo:
+				var passes = false
+
+				if is_king:
+					if not attacked_squares.has(to):
+						passes = true
+				elif pin_dir != null:
+					if _is_on_ray(from, to, pin_dir[0], pin_dir[1]):
+						passes = true
+				else:
+					if _is_checking_discovered(p, from, to, color):
+						passes = false
+					else:
+						passes = true
+
+				if passes:
+					moves.append([p, from, to])
+				else:
 					var state = simulate_move(from, to)
 					if not is_king_in_check(color):
 						moves.append([p, from, to])
 					undo_simulated_move(state)
+
 	return moves
 
 func simulate_move(from_pos, to_pos):
@@ -179,6 +231,72 @@ func is_square_attacked(pos, attacking_color):
 				if pos in threat:
 					return true
 	return false
+
+func _get_attacked_squares(color):
+	var attacked = {}
+	for y in range(8):
+		for x in range(8):
+			var p = grid[x + y * 8]
+			if p != null and p.color == color:
+				var threats = _get_threatened_squares(p, Vector2(x, y))
+				for sqaure in threats:
+					attacked[sqaure] = true
+	return attacked
+
+func _is_on_ray(from, to, dx, dy):
+	var diff_x = int(to.x) - int(from.x)
+	var diff_y = int(to.y) - int(from.y)
+	
+	if dx == 0 and dy == 0:
+		return false
+	if dx != 0 and diff_x % dx != 0:
+		return false
+	if dy != 0 and diff_y % dy != 0:
+		return false
+	if dx != 0:
+		var t = diff_x / dx
+		if t <= 0:
+			return false
+		if dy != 0 and diff_y / dy != t:
+			return false
+	else:
+		var t = diff_y / dy
+		if t <= 0:
+			return false
+	return true
+
+func _compute_pins(color, king_pos):
+	var pins = {}
+	var all_dirs = BISHOP_BEAM_INCREMENTS + ROOK_BEAM_INCREMENTS
+	for dir in all_dirs:
+		var dx = dir[0]
+		var dy = dir[1]
+		var cx = int(king_pos.x) + dx
+		var cy = int(king_pos.y) + dy
+		var pinned_pos = null
+
+		while cx >= 0 and cx < 8 and cy >= 0 and cy < 8:
+			var p = grid[cx + cy * 8]
+			if p != null:
+				if pinned_pos == null:
+					if p.color == color:
+						pinned_pos = Vector2(cx, cy)
+					else:
+						break
+				else:
+					if p.color != color and _is_slider_threatening(p, dx, dy):
+						pins[pinned_pos] = [dx, dy]
+						break
+			cx += dx
+			cy += dy
+	return pins
+
+func _is_slider_threatening(piece, dx, dy):
+	var is_diagonal = (dx != 0 and dy != 0)
+	if is_diagonal:
+		return piece.type == Globals.PIECE_TYPES.BISHOP or piece.type == Globals.PIECE_TYPES.QUEEN
+	else:
+		return piece.type == Globals.PIECE_TYPES.ROOK or piece.type == Globals.PIECE_TYPES.QUEEN
 
 func get_castling_rights():
 	var rights = ""

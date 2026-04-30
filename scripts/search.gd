@@ -107,6 +107,7 @@ func negmax(depth, alpha, beta, color, _hash, search_board):
 	valid_moves = sort_moves(valid_moves, search_board, color)
 
 	var best_score = -INFINITY
+	var best_move_pos = null
 	var original_alpha = alpha
 
 	for move in valid_moves:
@@ -143,6 +144,7 @@ func negmax(depth, alpha, beta, color, _hash, search_board):
 		"score": store_score,
 		"flag": flag,
 		"depth": depth,
+		"best_move": best_move_pos
 	}
 
 	return best_score

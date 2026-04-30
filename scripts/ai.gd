@@ -4,7 +4,7 @@ class_name ai
 const Search = preload("res://scripts/search.gd")
 var status = Globals.COLORS.BLACK
 
-@export var search_depth = 4
+@export var search_depth = 5
 
 var board
 var search

@@ -140,7 +140,7 @@ func init_game():
 	is_dragging = false
 	player_color = Globals.COLORS.WHITE
 	status = Globals.COLORS.WHITE
-	player2_type = Globals.PLAYER_2_TYPE.HUMAN # change to ai later
+	player2_type = Globals.PLAYER_2_TYPE.AI # change to ai later
 	halfmove_clock = 0
 	fullmove_number = 1
 	move_generator = MoveGenerator.new(board, status)
